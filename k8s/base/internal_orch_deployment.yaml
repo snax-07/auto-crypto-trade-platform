@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: internal-orch-deployment
+spec:
+  selector:
+    matchLabels:
+      app: internal-orch
+  template:
+    metadata:
+      labels:
+        app: internal-orch
+    spec:
+      containers:
+      - name: orchestor
+        image: orch:latest
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+          requests:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 8000
+        imagePullPolicy: IfNotPresent
+        restart: Always

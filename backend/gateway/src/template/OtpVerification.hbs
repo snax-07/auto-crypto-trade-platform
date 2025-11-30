@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{appName}} — Verify your account</title>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f3f4f6;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
+    }
+
+    .wrapper {
+      max-width: 520px;
+      margin: 40px auto;
+      background: #ffffff;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Top banner */
+    .banner {
+      height: 120px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .banner-title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    /* Content */
+    .content {
+      padding: 32px 32px 28px;
+      color: #1f2937;
+    }
+
+    .greeting {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .text {
+      margin: 0 0 22px 0;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #4b5563;
+    }
+
+    /* OTP BOX */
+    .otp-box {
+      width: fit-content;
+      margin: 0 auto 24px auto;
+      padding: 14px 26px;
+      background: #f8fafc;
+      border-radius: 12px;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 10px;
+      color: #1e293b;
+      border: 1px dashed #cbd5e1;
+    }
+
+    /* Button */
+    .btn {
+      display: inline-block;
+      background: #2563eb;
+      color: #ffffff;
+      text-decoration: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      opacity: 0.95;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 22px 24px;
+      font-size: 12px;
+      color: #9ca3af;
+      border-top: 1px solid #f3f4f6;
+      background: #ffffff;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Hidden preview text -->
+  <div style="display:none;max-height:0;overflow:hidden;">
+    Use code {{otp}} to verify your {{appName}} account. Expires in {{expiryMinutes}} minutes.
+  </div>
+
+  <div class="wrapper">
+
+    <!-- Banner -->
+    <div class="banner">
+      <div class="banner-title">Account Verification</div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content">
+      <p class="greeting">Hi {{#if userName}}{{userName}}{{else}}there{{/if}},</p>
+
+      <p class="text">
+        Thanks for creating an account with <strong>{{appName}}</strong>.
+        Please use the verification code below to complete your sign-in.
+        This code expires in <strong>{{expiryMinutes}} minutes</strong>.
+      </p>
+
+      <!-- OTP -->
+      <div class="otp-box">{{otp}}</div>
+
+      {{#if verificationUrl}}
+        <div style="text-align:center;">
+          <a href="{{verificationUrl}}" class="btn" target="_blank">Verify Account</a>
+        </div>
+      {{/if}}
+
+      <p class="text" style="text-align:center; font-size:12px; margin-top:24px;">
+        If you didn’t request this, you can safely ignore this email.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      © {{currentYear}} {{appName}} · All rights reserved.
+    </div>
+
+  </div>
+
+</body>
+</html>

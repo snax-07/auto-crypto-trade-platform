@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package trade;
+option go_package = "engines/tradeExecutor/gRPC/proto/trade";
+message TradeBotRequest {
+    string bot_id = 1;
+    string action = 2;
+    string exchangePair = 3;
+    double amount = 4;
+    string strategy = 5;
+}
+
+
+message TradeBotRequestReply{
+    string botId = 1;
+    string clientOrderId = 2;
+    bool isCompleted = 3;
+    string orderStatus = 4;
+    string strategy = 5;
+}
+
+service TradeBotService {
+    rpc TradeBotAction (TradeBotRequest) returns (TradeBotRequestReply);
+}

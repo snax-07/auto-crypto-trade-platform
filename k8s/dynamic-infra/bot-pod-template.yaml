@@ -1,0 +1,19 @@
+apiVersion : v1
+kind : pod # THIS WILL ACT AS CONTAINER FOR BOTH STAT CONTAINER AND I WILL KEEP TRACK ON IT LIKE IT IS OR NOT
+metadata : 
+  name : bot-pod-template
+  labels :
+    app : bot-app
+spec : 
+  containers : 
+    - name : sengine
+      image : sengine:latest
+      env : 
+      - name : SYMBOL
+        value : 
+      ports :
+        - containerPort : 50051
+    - name : tengine
+      image : tengine:latest
+      ports :
+        - containerPort : 50051
