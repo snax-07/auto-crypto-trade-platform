@@ -18,7 +18,7 @@ var (
 
 
 func InitMongo() {
-	uri := "mongodb+srv://snax:snax@snax1.svjz8.mongodb.net/"
+	uri := ""
 	if uri == "" {
 		log.Fatal("Mongo connection URL not found !!")
 	}
