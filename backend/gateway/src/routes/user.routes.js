@@ -2,11 +2,12 @@ import e from "express";
 import { RegisterUser  , LoginUser , test, exchangeCredentials, removeExchangeCredential, updateExchangeCredentials, getAllCredentials, verifyOtp, forgeMarketTrade, intiResetPassword, resetPassword} from "../controllers/user.controller.js";
 import verifyToken from "../utils/middleware-auth.js";
 import authoriseBotInit from "../utils/botAuthoriser.js";
+import { loginRateLimiterContext, signUpRateLimiterContext } from "../utils/rateLimiter.js";
 
 const router = e.Router();
 
-router.route('/register').post(RegisterUser);
-router.route('/login' ).post(LoginUser);
+router.route('/register').post(signUpRateLimiterContext , RegisterUser);
+router.route('/login' ).post( loginRateLimiterContext, LoginUser);
 router.route('/digi-verify').post(verifyOtp);
 router.route('/resetLink').post(intiResetPassword); 
 router.route('/reset-password').post(resetPassword);

@@ -19,6 +19,7 @@
     "crypto": "^1.0.1",
     "dotenv-flow": "^4.1.0",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
     "ioredis": "^5.8.2",
     "joi": "^18.0.1",
     "jsonwebtoken": "^9.0.2",
