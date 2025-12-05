@@ -1,5 +1,5 @@
 from fastapi import FastAPI , Request
-from bot_manager import create_bot
+from bot_manager import create_bot , delete_bot
 
 app = FastAPI();
 
@@ -36,10 +36,30 @@ async def init_obsidean_tradeBot(request : Request):
         obsidian_response = create_bot(data["bot_pod_spec"] , data["bot_user_spec"])
 
         return {
-           
-            "pod_forged_meta" : obsidian_response
+            "message" : "[BOT MANAGER] :: Bot created successfully !!!",
+            "pod_forged_meta" : {**obsidian_response},
+            "ok" : True
         }
     except Exception as e:
         print(e)
-        print("error snax ")
-        return e
+        return {
+            "e" : e,
+            "ok" : False
+        }
+
+@app.post('/internal/orchestrator/v1/destbot')
+async def deforge_obsidian_tradebot(request : Request):
+    try:
+        data = await request.json()
+        resp = delete_bot(data)
+
+        return {
+            "message" : resp["message"],
+            "ok" : True
+        }
+    except Exception as e:
+        print(e)
+        return {
+            "e" : e,
+            "ok" : False
+        }

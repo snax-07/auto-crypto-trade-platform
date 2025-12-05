@@ -8,7 +8,7 @@ from utils.botEventLogger import forge_event , forge_stopped_action , forge_trad
 from utils.sender import SendTradeDetails
 
 class IndicatorGenerator:
-    def __init__(self , symbol, quantity , strategy):
+    def __init__(self , symbol, quantity , strategy , dataStreame):
         self.df = pd.DataFrame()
         self.last_candle_time = None
         self.initialized = False
@@ -17,9 +17,11 @@ class IndicatorGenerator:
         self.exchangeCredentials = json.loads(os.getenv("bot_user_spec"))
         self.positionState = "waiting"
         self.strategy = strategy
+        self.DS = dataStreame
 
 
     def on_new_candle(self, dataFrame: pd.DataFrame):
+        print("demo" , self.quantity)
         start = time.time()
 
         self.df = dataFrame.copy()
@@ -99,6 +101,7 @@ class IndicatorGenerator:
             # destroy the k8s pod after successful selling the trade
 
 
-        
+    def force_bot_stop():
+        print("Bot is now stopped !!!")
            
         

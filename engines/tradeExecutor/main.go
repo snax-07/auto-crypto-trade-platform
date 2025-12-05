@@ -31,7 +31,7 @@ var (
 )
 
 func (s *TradeExecutorServer) TradeBotAction(ctx  context.Context , req *pb.TradeBotRequest) (*pb.TradeBotRequestReply , error){
-	log.Printf("Request received ::: bot_id =%s , action=%s , pair=%s , amount=%.2f , strategy=%s" ,
+	log.Printf("Request received ::: bot_id =%s , action=%s , pair=%s , amount=%.5f , strategy=%s" ,
 				req.BotId , req.Action , req.ExchangePair , req.Amount, req.Strategy)
     s.activeBots[req.BotId] = req.Action
 	

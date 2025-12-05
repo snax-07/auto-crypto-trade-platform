@@ -28,4 +28,4 @@ pymongo \
 binance
 
 COPY . .
-ENTRYPOINT ["python", "main.py"]
+ENTRYPOINT ["python", "-u" , "main.py"]

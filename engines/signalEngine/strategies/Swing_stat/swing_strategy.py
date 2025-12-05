@@ -17,6 +17,6 @@ class swing:
         DS = DataStreamer(self.symbol , self.timeFrame)
         await DS.connect()
         await DS.fetch_historical_data()
-        IG = IndicatorGenerator(self.symbol , self.quantity , self.strategy)
+        IG = IndicatorGenerator(self.symbol , self.quantity , self.strategy , DS)
         DS.subscribe(IG.on_new_candle)
         await DS.stream_live_data()

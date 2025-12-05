@@ -7,7 +7,6 @@ from kubernetes.client import Configuration
 from kubernetes.client.api import core_v1_api
 from kubernetes.client.rest import ApiException
 
-from utils.dbConnect import botInstanceDB
 
 
 def obsidian_trade_pod_forge(api_instance,  bot_pod_spec , bot_user_spec):
@@ -37,6 +36,7 @@ def obsidian_trade_pod_forge(api_instance,  bot_pod_spec , bot_user_spec):
                 "name": bot_ref
             },
             "spec": {
+                "terminationGracePeriodSeconds" : 5,
                 "containers": [
                     {
                         "name": "signal-engine-container",
@@ -45,17 +45,17 @@ def obsidian_trade_pod_forge(api_instance,  bot_pod_spec , bot_user_spec):
                         "lifecycle": {
                             "preStop": {
                                 "exec": {
-                                    "command": ["/bin/sh", "-c", "python shutdown.py"]
+                                    "command": ["python","shutdown.py"]
                                 }
                             }
                         },
                         "env": [
                             {
-                                "name": "BOT_POD_SPEC",
+                                "name": "bot_pod_spec",
                                 "value": json.dumps(bot_pod_spec)
                             },
                             {
-                                "name": "BOT_USER_SPEC",
+                                "name": "bot_user_spec",
                                 "value": json.dumps(bot_user_spec)
                             },
                             {
@@ -105,9 +105,26 @@ def obsidian_trade_pod_forge(api_instance,  bot_pod_spec , bot_user_spec):
         return {
             "message" : "Bot created successfully !!!",
             "ok" : True,
-            "pod_meta" : resp
+            "pod_meta" : resp.to_dict()
         }
     
+def obsidian_trade_pod_deforge(k8sApi , payload):
+    try:
+
+        #THIS IS API INSTANCE OF K8S AND HELP TO  READ AND WRITE SOME OPERATION
+        existingPod = None
+        try:
+            existingPod = k8sApi.read_namespaced_pod(name = payload["botID"] , namespace = "default")
+        except Exception as e:
+            return {
+                "message" : "[ORCEHTRATOR] : Bot not found !!!"
+            }
+        deletedPod = k8sApi.delete_namespaced_pod(name = payload["botID"] , namespace = "default");
+        return {
+            "message" : "[ORCHESTRATOR] : Bot Successfully stopped !!!"
+        }
+    except Exception as e:
+        return {"message" : "[ORCHESTRATOR] : Internal server error" , "e" : e};
 
 
 

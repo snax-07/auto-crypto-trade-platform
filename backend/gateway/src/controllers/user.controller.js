@@ -62,6 +62,9 @@ const LoginUser = async (req, res) => {
     try {
         await dbConnect();
         const { email, password } = req.body;
+        if(!email || !password) return res.status(410).json({
+            message : "Provide Credentials !!!"
+        })
         const isUserExist = await User.findOne({ email }).select("--refreshToken --exchangeCredentials --UIDAINumber");
         if (!isUserExist) {
             return res.status(404).json({ message: "User not found !!!" });
