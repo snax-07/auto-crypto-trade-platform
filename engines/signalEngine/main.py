@@ -5,7 +5,7 @@ import importlib
 import signal
 
 from dotenv import load_dotenv
-from tradeIndicator.indicatorGenerator import IndicatorGenerator
+from tradeIndicator.indicatorGenerator import IndicatorGenerator , force_bot_stop
 
 load_dotenv()
 
@@ -17,7 +17,7 @@ strategy = json.loads(os.getenv("bot_pod_spec"))["strategy"]
 stop_event = asyncio.Event()
 
 def shutdown_forged_bot_pod(*_):
-    IndicatorGenerator.force_bot_stop()
+    force_bot_stop();
     print("Final call")
     stop_event.set()
 

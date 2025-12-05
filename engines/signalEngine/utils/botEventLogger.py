@@ -2,17 +2,21 @@ import os
 import json
 import time
 
-from pymongo import AsyncMongoClient , server_api
+from dotenv import load_dotenv
+from pymongo import AsyncMongoClient , server_api ,MongoClient
 
+load_dotenv()
 DB_URL = json.loads(os.getenv("bot_user_spec"))["DB_URL"]
-mongo_client = AsyncMongoClient(DB_URL)["SnaxQuantum"]
+mongo_client = MongoClient(DB_URL)["SnaxQuantum"]
 botEvent = mongo_client["BotEvent"]
 botInstance = mongo_client["BotInstance"]
 
 
-async def forge_event(data):
+
+#THIS WILL LOG ONLY EVENT LIKE BOT CREATED  , BOT MADE SELL , BOT DEPLETED , ETC.    
+def forge_event(data):
     try:
-        eventLogged  = await botEvent.insert_one({
+        eventLogged  = botEvent.insert_one({
             "botId" : data["botId"],
             "type" : data["type"],
             "message" : data["message"],
@@ -48,7 +52,7 @@ def forge_stopped_action(data):
             "k8sPodName" : data["k8sPodName"],
             "status" : "stopped",
             "stopTime" : time.gmtime(),
-            "resultSummary" : data.result
+            "resultSummary" : data["result"]
         }).acknowledged
 
         if not botInstanceUpdate:
@@ -56,3 +60,4 @@ def forge_stopped_action(data):
         print("Bot intance is updated !!!")
     except:
         raise NotImplementedError
+

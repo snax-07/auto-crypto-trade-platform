@@ -25,7 +25,10 @@ python-binance \
 requests \
 vectorbt \
 pymongo \
-binance
+binance-connector
+
+
+
 
 COPY . .
 ENTRYPOINT ["python", "-u" , "main.py"]

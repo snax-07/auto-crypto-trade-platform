@@ -93,3 +93,8 @@ class DataStreamer:
 
     def unsubscribe(self):
         self.listeners.clear()
+        print("Receiver is deplecated !!!")
+    
+    def disconnect(self):
+        asyncio.get_event_loop().create_task(self.client.close_connection())
+        print("Connection is closed !!!")
