@@ -13,11 +13,11 @@ const MiddleTransporter = nodemailer.createTransport({
 const handlerBarOptions = {
     viewEngine : {
         extname : '.hbs',
-        layoutsDir : path.resolve('./template'),
+        layoutsDir : path.resolve('./src/template'),
         defaultLayout : 'main',
-        partialsDir : path.resolve('./template')
+        partialsDir : path.resolve('./src/template')
     },
-    viewPath : path.resolve('./template'),
+    viewPath : path.resolve('./src/template'),
     extName: '.hbs'
 };
 

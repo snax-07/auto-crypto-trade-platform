@@ -8,15 +8,15 @@ const verifyToken = (req , res , next) => {
 
 
         if(!token){
-            return res.status(401).json({ message: "Not Authenticated: No token provided" });
+            return res.status(403).json({ message: "Not Authenticated: No token provided" });
         }
 
         jwt.verify(token , JWT_SECRET , (err , decoded) => {
             if(err){
                 if(err.name === 'TokenExpiredError'){
-                    return res.status(401).json({ message: 'Token Expired' });
+                    return res.status(403).json({ message: 'Token Expired' });
                 }
-                return res.status(401).json({ message: 'Invalid Token' });
+                return res.status(403).json({ message: 'Invalid Token' });
             }
 
             req.user = decoded;

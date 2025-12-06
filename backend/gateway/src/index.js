@@ -16,10 +16,11 @@ app.use(cors({
 }))
 app.use(express.urlencoded({extended : true}));
 app.use(cookieParser());
+app.use(express.json())
 
 
 //User Routes
-app.use('/api/v1',userRouter);
+app.use('/api/v1/auth',userRouter);
 app.use('/api/v1/exchange' , userRouter)
 app.use('/api/v1/order' ,tradeRateLimiterContext ,  userRouter)
 

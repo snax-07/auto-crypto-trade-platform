@@ -60,19 +60,21 @@ const RegisterUser = async (req , res) => {
 
 const LoginUser = async (req, res) => {
     try {
+        console.log("Request REC")
         await dbConnect();
         const { email, password } = req.body;
         if(!email || !password) return res.status(410).json({
-            message : "Provide Credentials !!!"
-        })
+            message : "Provide Credentials !!!",
+            ok : false
+        });
         const isUserExist = await User.findOne({ email }).select("--refreshToken --exchangeCredentials --UIDAINumber");
         if (!isUserExist) {
-            return res.status(404).json({ message: "User not found !!!" });
+            return res.status(404).json({ message: "User not found !!!" , ok : false });
         }
-
+        
         const isValid = await isUserExist.verifyPassword(password);
         if (!isValid) {
-            return res.status(401).json({ message: "Invalid credentials !!!" });
+            return res.status(401).json({ message: "Invalid credentials !!!"  , ok : false });
         }
 
         const { accessToken, refreshToken } = generateTokens(isUserExist);
@@ -81,10 +83,11 @@ const LoginUser = async (req, res) => {
 
         // Set cookies first, then send response
         return res
-            .cookie('accessToken', accessToken, { httpOnly: true, secure: false  , sameSite : 'lax'})
-            .cookie('refreshToken', refreshToken, { httpOnly: true, secure: false  , sameSite : 'lax'})
+            .cookie('accessToken', accessToken, { httpOnly: true, secure: true  , sameSite : 'lax'})
+            .cookie('refreshToken', refreshToken, { httpOnly: true, secure: true  , sameSite : 'lax'})
+            .cookie('user' , isUserExist , {httpOnly : true , secure : true , sameSite : 'lax'})
             .status(200)
-            .json({ message: "User Logged Successfully !!!" });
+            .json({ message: "User Logged Successfully !!!" , ok : true});
 
     } catch (error) {
         return res.status(500).json({
@@ -269,29 +272,36 @@ const intiResetPassword = async (req , res) => {
         await dbConnect();
         const {email } = req.body;
         if(!email) return res.status(410).json({
-            message : "Credential is required !!!"
+            message : "Credential is required !!!",
+            ok : false
         });
         if (typeof email !== "string") {
             return res.status(400).json({
-                message: "Invalid email format!"
+                message: "Invalid email format!",
+                ok : false
             });
         }
         const existingUser = await User.findOne({ email });
         if(!existingUser) return res.status(410).json({
-            message : "User not found !!!"
+            message : "User not found !!!",
+            ok : false
         });
 
-        const token = await ResetToken(existingUser._id);
-        const url = `/rPassword?token=${token}`;
+        const token = await ResetToken.createTokenForUser(existingUser._id);
+        const url = `http://localhost:3000/forgotP/${token}`;
+        console.log(url)
         await sendPasswordResetMail(email , url);
-
+        
         return res.status(200).json({
+            ok : true,
             message : `Reset Link sent to ${email}`
         })
     } catch (error) {
+        console.log(error.message)
         return res.status(500).json({
             message : "[ERROR] Sending password reset link !!!",
-            error : error.message || error
+            error : error.message || error,
+            ok : false
         })
     }
 }
@@ -304,14 +314,16 @@ const resetPassword = async (req , res) => {
             message : "Token Miising !!!"
         });
 
+        console.log(token)
         const {valid , record , reason} = await ResetToken.validateToken(token);
         if(!valid) return res.status(203).json({
-            message : reason
+            message : reason,
+            ok : valid
         });
 
         const existingUser = await User.findOne({_id : record.userId});
         await existingUser.changePassword(newPassword);
-        await ResetToken.markAsUsed();
+        await ResetToken.findOneAndUpdate({token} , {$set : {used : true}})
         await existingUser.save();
         if(!existingUser) return 
         return res.status(200).json({
@@ -319,6 +331,7 @@ const resetPassword = async (req , res) => {
             ok : true
         });
     } catch (error) {
+        console.log(error.message)
         return res.status(500).json({
             message : "[ERROR]change password",
             error : error.message || error
