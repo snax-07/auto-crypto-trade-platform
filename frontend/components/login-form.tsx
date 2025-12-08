@@ -58,7 +58,7 @@ export function LoginForm({
       
     } catch (error : any) {
       setIsLogging(false);
-      toast.error(error.message , {
+      toast.error(error.response.data.message , {
         action : {
           label : <Ban />,
           onClick : () => toast.dismiss()

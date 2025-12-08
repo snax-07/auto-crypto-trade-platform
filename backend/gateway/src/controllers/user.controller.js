@@ -25,12 +25,25 @@ const RegisterUser = async (req , res) => {
             const  {email , name , password} = req.body;
 
             const existingUser = await User.findOne({email});
-            if(existingUser){
-                return res.status(409).send({
-                    message : "User is already with credentials !!!"
-                })
-            };
 
+            if(existingUser && existingUser.isVerified){
+                return res.status(409).send({
+                    message : "User is already with credentials !!!",
+                    ok : false
+                });
+            };
+            
+            if(existingUser && !existingUser.isVerified){
+                const otp = authenticator.generate(authenticator.generateSecret());
+                await existingUser.hashOtp(otp);
+                await sendOtpEmail(email , "Account Verification" , "OtpVerification" , name.split(" ")[0] , otp );
+                await existingUser.save();
+                return res.status(409).json({
+                    message : "Verify Account !!!",
+                    ok : true,
+                    nextRoute : `/acc/verification?email=${email}`
+                });
+            };
 
             const otp = authenticator.generate(authenticator.generateSecret())
 
@@ -42,15 +55,16 @@ const RegisterUser = async (req , res) => {
 
             await newUser.setPassword(password);
             await newUser.hashOtp(otp);
-            await newUser.save();
 
-            sendOtpEmail(email , "Account Verification" , "OtpVerification" , name.split(" ")[0] , otp )
+            await sendOtpEmail(email , "Account Verification" , "OtpVerification" , name.split(" ")[0] , otp )
 
             return res.status(200).send({
                 message : "User registered successfully !!",
-                nextRoute : "/acc/verification"
+                nextRoute : `/acc/verification?email=${email}`,
+                ok : true
             })
     } catch (error) {
+        console.log(error.message)
         return res.status(500).send({
             message : "Error while registering the user !!!",
             error : error.message
@@ -180,7 +194,7 @@ const verifyOtp = async (req, res) => {
         const {email , otp} = req.body;
         const isVerified = await User.findOne({email}).select("--refreshToken --exchangeCredentials --UIDAINumber");
 
-        const response = isVerified.verifyOtp(otp);
+        const response = await isVerified.verifyOtp(otp);
         if(!response.status) return res.status(410).send({...response});
         const {accessToken , refreshToken} = generateTokens(isVerified);
         isVerified.refreshToken = refreshToken;
@@ -190,8 +204,9 @@ const verifyOtp = async (req, res) => {
                 .status(200)
                 .cookie("accessToken" , accessToken , {httpOnly : true , secure : false , sameSite : "lax"})
                 .cookie("refreshToken" , refreshToken, {httpOnly : true , secure : false , sameSite : "lax"})
-                .json({message : "user verified successfully !!!"})
+                .json({message : "user verified successfully !!!" , ok : true})
     } catch (error) {
+        console.log(error.message)
         return res.status(500).send({
             message : "Error while verification",
             error : error.message || error

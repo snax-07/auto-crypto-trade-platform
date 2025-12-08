@@ -43,14 +43,18 @@ const UserSchema = new mongoose.Schema({
   hashedPassword: { type: String, required: true },
   name: { type: String },
   role: { type: String, enum: ["admin", "trader"], default: "trader" },
+  subscription : {type : String , default : "REGULAR" , enum : ["REGULAR" , "PREMIUM" , "DIAMOND"]},
+
   exchangeCredentials: { type: [ExchangeCredentialSchema], default: [] },
   isVerified: { type: Boolean, default: false },
   isPanVerified: { type: Boolean, default: false },
   UIDAINumber: { type: String },
-  refreshToken: { type: String, default: null },
-  botCount : {type : Number , default :0},
 
+  marketWatchList : {type : [String] , default: []},
+  botCount : {type : Number , default :0},
+  
   otp: { type: String },
+  refreshToken: { type: String, default: null },
   otpExpiryTime: { type: Date },
   verificationAttempt: { type: Number, default: 3 },
 
