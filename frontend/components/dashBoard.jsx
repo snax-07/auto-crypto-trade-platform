@@ -2,7 +2,7 @@ import { ChartAreaInteractive } from "@/components/chart-area-interactive"
 import { DataTable } from "@/components/data-table"
 import { SectionCards } from "@/components/section-cards"
 
-import data from '../app/dashboard/data.json'
+import data from "@/app/v1/dashboard/data.json"
 
 export function Dash(){
     return(
@@ -11,7 +11,7 @@ export function Dash(){
               <div className="px-4 lg:px-6">
                 <ChartAreaInteractive />
               </div>
-              <DataTable data={data} />
+              <DataTable />
         </>
     )
 }

@@ -32,6 +32,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { useAuth } from "@/hooks/useAuth"
 
 const data = {
   user: {
@@ -155,6 +156,10 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ activeTab, setActiveTab, ...props }: AppSidebarProps) {
+
+
+  const {user , loading} = useAuth();
+  // if(!loading) return null
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarContent>
@@ -171,7 +176,7 @@ export function AppSidebar({ activeTab, setActiveTab, ...props }: AppSidebarProp
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   )

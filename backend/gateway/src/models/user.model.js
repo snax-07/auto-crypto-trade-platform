@@ -49,6 +49,8 @@ const UserSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   isPanVerified: { type: Boolean, default: false },
   UIDAINumber: { type: String },
+  phoneNumber : {type : Number},
+  referralCode : {type : String},
 
   marketWatchList : {type : [String] , default: []},
   botCount : {type : Number , default :0},

@@ -1,5 +1,5 @@
 import e from "express";
-import { RegisterUser  , LoginUser , test, exchangeCredentials, removeExchangeCredential, updateExchangeCredentials, getAllCredentials, verifyOtp, forgeMarketTrade, intiResetPassword, resetPassword} from "../controllers/user.controller.js";
+import { RegisterUser  , LoginUser , test, exchangeCredentials, removeExchangeCredential, updateExchangeCredentials, getAllCredentials, verifyOtp, forgeMarketTrade, intiResetPassword, resetPassword, returnMe, setReferralCode} from "../controllers/user.controller.js";
 import verifyToken from "../utils/middleware-auth.js";
 import authoriseBotInit from "../utils/botAuthoriser.js";
 import { loginRateLimiterContext, signUpRateLimiterContext } from "../utils/rateLimiter.js";
@@ -15,13 +15,17 @@ router.route('/reset-password').post(resetPassword);
 
 //PROTECTED ROUTES
 router.route('/test').post(verifyToken , test);
+
+
 router.route('/add').post(verifyToken , exchangeCredentials);
 router.route('/delete-cred').post(verifyToken , removeExchangeCredential);
 router.route('/update/:exchangeId').post(verifyToken , updateExchangeCredentials);
 router.route('/getCred').get(verifyToken , getAllCredentials);
 
+router.route('/referral').post(verifyToken , setReferralCode);
+router.route('/me').get(verifyToken , returnMe);
 
-//PROTECTED AND TRADE ROUTES
+//PROTECTED AND TRADE ROUTES BOT
 router.route('/create').post(verifyToken , authoriseBotInit,forgeMarketTrade);
 
 

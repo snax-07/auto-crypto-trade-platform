@@ -8,7 +8,7 @@ import { forgeRedisClient } from "../redis/redis-obsidian-client.js";
 import getExchnageInfo from "../helper/exchange-info.js";
 import { validateOrder } from "../helper/filterValidator.js";
 import ResetToken from "../models/passwordResetToken.js";
-import mongoose from "mongoose";
+import mongoose, { deleteModel } from "mongoose";
 
 export const generateTokens = (user) => {
     const payload = { id: user._id , name : user.name, email: user.email  , isVerified : user.isVerified , isPanVerified : user.isPanVerified};
@@ -77,11 +77,13 @@ const LoginUser = async (req, res) => {
         console.log("Request REC")
         await dbConnect();
         const { email, password } = req.body;
+        console.log(email)
+        console.log(password)
         if(!email || !password) return res.status(410).json({
             message : "Provide Credentials !!!",
             ok : false
         });
-        const isUserExist = await User.findOne({ email }).select("--refreshToken --exchangeCredentials --UIDAINumber");
+        const isUserExist = await User.findOne({ email });
         if (!isUserExist) {
             return res.status(404).json({ message: "User not found !!!" , ok : false });
         }
@@ -99,11 +101,11 @@ const LoginUser = async (req, res) => {
         return res
             .cookie('accessToken', accessToken, { httpOnly: true, secure: true  , sameSite : 'lax'})
             .cookie('refreshToken', refreshToken, { httpOnly: true, secure: true  , sameSite : 'lax'})
-            .cookie('user' , isUserExist , {httpOnly : true , secure : true , sameSite : 'lax'})
             .status(200)
             .json({ message: "User Logged Successfully !!!" , ok : true});
 
     } catch (error) {
+        console.log(error.message)
         return res.status(500).json({
             message: "Authentication Failed !!!",
             error: error.message
@@ -352,8 +354,80 @@ const resetPassword = async (req , res) => {
             error : error.message || error
         });
     }
-}
+};
 
+const returnMe = async (req , res) => {
+    try {
+        await dbConnect();
+
+        const user = await User.findOne({email : req.user?.email} , 
+            {email : 1,
+             name : 1,
+             subscription : 1,
+             isPanVerified : 1,
+             marketWatchList : 1,
+             referralCode : 1,
+             phoneNumber : 1
+            });
+
+        return res.status(200).json({
+            message : "User Fetched succesfully !!",
+            user,
+            ok : true
+        })
+    } catch (error) {
+        return res.status(500).json({
+            message : "Error while fetching user !!",
+            error : error.message,
+            ok : true
+        })
+    }
+};
+
+const setReferralCode = async (req ,res) =>{
+    try {
+        console.log()
+        await dbConnect();
+        const {referralCode} = req.body
+        if(!referralCode) return res.status(410).json({
+            message : "[SERVER] Provide Credentials !!!"
+        })
+        const user = await User.findOne({email : req.user?.email});
+        user.referralCode = referralCode;
+        await user.save();
+        return res.status(200).json({
+            message : "[SERVER] Referreal code Updated !!!",
+            ok : true
+        });
+    } catch (error) {
+        return res.status(500).json({
+            message : "[SERVER] Set Referral",
+            error : error.message,
+            ok: false
+        });
+    }
+};
+
+const setPhoneNumber = async (req , res) => {
+    try {
+        await dbConnect();
+        const {PhoneNumber} = req.body
+        const user = await User.findOne({email : req.user?.email});
+        user.PhoneNumber = PhoneNumber;
+        await user.save();
+        
+        return res.status(200).json({
+            message : "[SERVER] Phone Updated !!!" ,
+            ok : true
+        });
+    } catch (error) {
+        return res.status(500).json({
+            message : "[SERVER] Phone update !!!",
+            error : error.message,
+            ok : false
+        })
+    }
+}
 const test = async (req , res) => {
 
     await sendOtpEmail("swapnilnade07@gmail.com" , "Test mail" , 'OtpVerification' , {name : "snax"})
@@ -372,6 +446,8 @@ export {
     intiResetPassword,
     resetPassword,
 
+    setReferralCode,
+    setPhoneNumber,
 
     exchangeCredentials,
     removeExchangeCredential,
@@ -379,7 +455,7 @@ export {
     getAllCredentials,
 
     forgeMarketTrade,
-
+    returnMe
 
 
 }
