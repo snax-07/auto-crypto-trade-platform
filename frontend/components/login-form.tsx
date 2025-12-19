@@ -58,7 +58,7 @@ export function LoginForm({
       
     } catch (error : any) {
       setIsLogging(false);
-      toast.error(error.response.data.message , {
+      toast.error((error.response?.data.message  || "Internal Server Error"), {
         action : {
           label : <Ban />,
           onClick : () => toast.dismiss()
@@ -129,7 +129,7 @@ export function LoginForm({
               <Field>
                 <Button disabled = {isLogging} type="submit">Login</Button>
                 <FieldDescription className="text-center">
-                  Don&apos;t have an account? <a href="#">Sign up</a>
+                  Don&apos;t have an account? <a href="/signup">Sign up</a>
                 </FieldDescription>
               </Field>
             </FieldGroup>
