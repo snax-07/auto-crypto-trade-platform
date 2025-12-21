@@ -9,6 +9,8 @@ import getExchnageInfo from "../helper/exchange-info.js";
 import { validateOrder } from "../helper/filterValidator.js";
 import ResetToken from "../models/passwordResetToken.js";
 import mongoose, { deleteModel } from "mongoose";
+import TradeHis from "../models/eventLogger.js"
+
 
 export const generateTokens = (user) => {
     const payload = { id: user._id , name : user.name, email: user.email  , isVerified : user.isVerified , isPanVerified : user.isPanVerified};
@@ -220,35 +222,41 @@ const verifyOtp = async (req, res) => {
 const forgeMarketTrade = async (req , res) => {
     try {
 
-        const {pair , quantity , quoteOrderQty , type , side , price} = req.body;
 
+        const { pair, quantity, quoteOrderQty, type, side, order_price } = req.body;
+        console.log(req.body)
         const symInfo = await getExchnageInfo(pair);
-        const isValid = validateOrder(symInfo , {price , qty : quantity , quoteOrderQty : quoteOrderQty});
+        const isValid = validateOrder(symInfo , {order_price , qty : quantity , quoteOrderQty : quoteOrderQty});
         if(!isValid.ok) return res.status(410).json({
             message : isValid.error || "[ERROR creating order !!!]"
         })
+        console.log("demo")
 
 
         const client = forgeRedisClient();
 
-        (await client).lPush(
-            `orders_${type.toLowerCase()}`,
-            JSON.stringify({
-                order_type : type.toUpperCase(),
-                order_symbol : pair,
-                order_quantity  : quantity,
-                order_quoteOrderQty : quoteOrderQty,
-                order_side : side.toUpperCase(),
-                user_id : "req.user.id"
-            })
-        );
+(await client).lPush(
+    `orders_${type.toLowerCase()}`,
+    JSON.stringify({
+        order_type: type.toUpperCase(),
+        order_symbol: pair,
+        order_quantity: parseFloat(quantity),
+        order_price: parseFloat(order_price), // Map this correctly
+        order_quoteOrderQty: parseFloat(quoteOrderQty),
+        order_side: side.toUpperCase(),
+        user_email: req.user?.email
+    })
+);
         return res.status(200).json({
-            message : "Trade created successfully !!!"
+            message : "Trade created successfully !!!",
+            ok : true
         })
     } catch (error) {
+        console.log(error.message)
         return res.status(500).json({
             message : "[Error] Creating order !!",
-            error : error.message || error.response || error
+            error : error.message || error.response || error ,
+            ok : false
         })
     }
 };
@@ -428,6 +436,27 @@ const setPhoneNumber = async (req , res) => {
         })
     }
 }
+
+const getAllOrders = async (req , res) => {
+    try {
+        await dbConnect();
+        const user = req.user
+        const history = await TradeHis.find();
+
+        return res.status(200).json({
+            message : "Order Fetched Successfull !!",
+            history,
+            ok : true
+        })
+    } catch (error) {
+        console.log(error.message)
+        return res.status(500).json({
+            message :"[SERVER] Internal Error",
+            error : error.message | error,
+            ok : false
+        })
+    }
+}
 const test = async (req , res) => {
 
     await sendOtpEmail("swapnilnade07@gmail.com" , "Test mail" , 'OtpVerification' , {name : "snax"})
@@ -455,7 +484,8 @@ export {
     getAllCredentials,
 
     forgeMarketTrade,
-    returnMe
+    returnMe,
+    getAllOrders
 
 
 }

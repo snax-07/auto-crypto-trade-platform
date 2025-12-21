@@ -1,5 +1,5 @@
 import e from "express";
-import { RegisterUser  , LoginUser , test, exchangeCredentials, removeExchangeCredential, updateExchangeCredentials, getAllCredentials, verifyOtp, forgeMarketTrade, intiResetPassword, resetPassword, returnMe, setReferralCode} from "../controllers/user.controller.js";
+import { RegisterUser  , LoginUser , test, exchangeCredentials, removeExchangeCredential, updateExchangeCredentials, getAllCredentials, verifyOtp, forgeMarketTrade, intiResetPassword, resetPassword, returnMe, setReferralCode, getAllOrders} from "../controllers/user.controller.js";
 import verifyToken from "../utils/middleware-auth.js";
 import authoriseBotInit from "../utils/botAuthoriser.js";
 import { loginRateLimiterContext, signUpRateLimiterContext } from "../utils/rateLimiter.js";
@@ -24,9 +24,10 @@ router.route('/getCred').get(verifyToken , getAllCredentials);
 
 router.route('/referral').post(verifyToken , setReferralCode);
 router.route('/me').get(verifyToken , returnMe);
+router.route('/getHistory').get(verifyToken , getAllOrders)
 
 //PROTECTED AND TRADE ROUTES BOT
-router.route('/create').post(verifyToken , authoriseBotInit,forgeMarketTrade);
+router.route('/create').post(verifyToken ,forgeMarketTrade);
 
 
 export default router

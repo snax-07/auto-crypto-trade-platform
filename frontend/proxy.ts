@@ -11,7 +11,7 @@ export async function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname.replace(/\/$/, "");
 
     if (accessToken && (path === "/login" || path === "/signup")) {
-      return NextResponse.redirect(new URL("/v1/dashboard", request.url));
+      return NextResponse.next();
     }
 
     if (!accessToken && path.startsWith("/v1")) {

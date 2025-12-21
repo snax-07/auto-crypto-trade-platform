@@ -3,6 +3,8 @@ import axios from "axios";
 
 
 
+console.log("✅ WebSocket server running on ws://localhost:8081")
+
 const allCandlesSpot = async (req , res) => {
   try {
     const {

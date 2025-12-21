@@ -27,6 +27,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<UserIn | null>(null);
   const [loading, setLoading] = useState(true);
 
+  async function demo() {
+    
+  }
   useEffect(() => {
     console.log("client auth provider")
     console.log("User : " , user)
@@ -48,7 +51,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading }}>
+    <AuthContext.Provider value={{ user, setUser, loading}}>
       {children}
     </AuthContext.Provider>
   );

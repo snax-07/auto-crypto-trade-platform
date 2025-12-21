@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/hooks/useAuth";
+import { MarketProvider } from "@/hooks/useTrade";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,8 +31,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white`}
       >
       <AuthProvider>
-          {children}
+        <MarketProvider>
+            {children}
         <Toaster />
+        </MarketProvider>
       </AuthProvider>
       </body>
     </html>

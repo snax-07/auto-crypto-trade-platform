@@ -18,7 +18,7 @@ var (
 
 
 func InitMongo() {
-	uri := ""
+	uri := "mongodb+srv://snax:snax@snax1.svjz8.mongodb.net/"
 	if uri == "" {
 		log.Fatal("Mongo connection URL not found !!")
 	}
@@ -39,7 +39,7 @@ func InitMongo() {
 	}
 
 	// Initialize collections
-	Trade = Client.Database("SnaxQuantum").Collection("trade")
+	Trade = Client.Database("SnaxQuantum").Collection("tradehis")
 	User = Client.Database("SnaxQuantum").Collection("users")
 
 	fmt.Println("MongoDB connected successfully!")

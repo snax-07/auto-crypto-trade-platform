@@ -1,10 +1,15 @@
+/*---------MODULES IMPORTS----------*/
 import express from 'express'
 import cors from 'cors'
+import { WebSocketServer } from 'ws';
+
+/*---------INTERNAL ROUTE IMPORTS-------*/
 import userRouter from './routes/user.routes.js'
 import { PORT } from './utils/secretEnv.js';
 import cookieParser from 'cookie-parser'
 import botRouter from './routes/automationBot.routes.js';
 import { botRateLimiterContext, globalRateLimiterContext, tradeRateLimiterContext } from './utils/rateLimiter.js';
+
 const app = express();
 
 import axios, { all } from 'axios';
@@ -29,15 +34,28 @@ app.use('/api/v1/order' ,tradeRateLimiterContext ,  userRouter)
 //Automation Routes / BOT Routes
 app.use('/api/v1/bot' , botRateLimiterContext , botRouter);
 
+
+
+
 //DEMO
+
+function alignEndTime(timestampMs, interval) {
+  const map = {
+    "1m": 60_000,
+    "5m": 5 * 60_000,
+    "15m": 15 * 60_000,
+    "1h": 60 * 60_000,
+    "1d": 24 * 60 * 60_000,
+  }
+
+  const step = map[interval]
+  return Math.floor(timestampMs / step) * step
+}
+
 
 app.get("/api/candles", async (req, res) => {
   try {
-    const {
-      symbol = "BTCUSDT",
-      interval = "1m",
-      before, // unix seconds
-    } = req.query
+    const { symbol = "BTCUSDT", interval = "1m", before } = req.query
 
     const LOOKBACK_DAYS = {
       "1m": 30,
@@ -48,13 +66,17 @@ app.get("/api/candles", async (req, res) => {
     }
 
     const days = LOOKBACK_DAYS[interval] ?? 30
-    const endTime = before
+
+    const rawEnd = before
       ? Number(before) * 1000
       : Date.now()
 
-    const startTime = endTime - days * 24 * 60 * 60 * 1000
+    // ✅ ALIGN TIMESTAMP (THIS FIXES 400 ERROR)
+    let fetchEnd = alignEndTime(rawEnd, interval)
 
-    let fetchEnd = endTime
+    const startTime =
+      fetchEnd - days * 24 * 60 * 60 * 1000
+
     const formatted = []
 
     while (formatted.length < 1000) {
@@ -84,21 +106,22 @@ app.get("/api/candles", async (req, res) => {
         })
       }
 
+      // move backwards in time
       fetchEnd = data[0][0] - 1
+
       if (fetchEnd <= startTime) break
     }
-    res.json(formatted)
+
+    return res.json(formatted)
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    console.log(e.message)
+    return res.status(500).json({ error: e.message })
   }
 })
 
-
-import WebSocket, { WebSocketServer } from "ws"
-import { json } from 'stream/consumers';
+/*---------------WEBSOCKET REGISTARY--------------*/
 
 const wss = new WebSocketServer({ port: 8081 })
-
 wss.on("connection", (client) => {
   console.log("Client connected")
 
@@ -106,8 +129,8 @@ wss.on("connection", (client) => {
     "wss://stream.binance.com/ws/btcusdt@kline_1m"
   )
 
-  binanceWS.on("message", (msg) => {
-    const data = JSON.parse(msg.toString())
+  binanceWS.onmessage = (event) => {
+    const data = JSON.parse(event.data.toString())
     const k = data.k
     const candle = {
       time: k.t / 1000,
@@ -119,7 +142,7 @@ wss.on("connection", (client) => {
     }
 
     client.send(JSON.stringify(candle))
-  })
+  }
 
   client.on("close", () => {
     if(binanceWS.readyState){
@@ -130,8 +153,6 @@ wss.on("connection", (client) => {
     console.log("Client disconnected")
   })
 })
-
-console.log("✅ WebSocket server running on ws://localhost:8081")
 
 
 app.listen(PORT , () => console.log(`server is running on ${process.env.PORT} `));
