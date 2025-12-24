@@ -7,7 +7,7 @@ const botRouter = e.Router();
 
 
 //PROTECTED. ROUTES FOR BOT CREATION
-botRouter.route('/bot/create').post(verifyToken, authoriseBotInit,  createAutoBot);
+botRouter.route('/create').post(verifyToken, authoriseBotInit,  createAutoBot);
 botRouter.route('/stop').post(verifyToken , stopBot);
 
 //THIS ROUTES ARE ONLY USED FOR TESTING PURPOSE

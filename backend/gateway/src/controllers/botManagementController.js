@@ -13,6 +13,7 @@ const createAutoBot = async (req , res) => {
         await dbConnect();
         const {exchangePair , strategy , quantity , timeFrame} = req.body;
 
+        console.log(exchangePair , strategy , quantity , timeFrame)
         if(!exchangePair || !strategy || !quantity || !timeFrame) return res.status(203).json({ message : "Provide all paramaters !!!"});
 
 
@@ -21,7 +22,8 @@ const createAutoBot = async (req , res) => {
         if(user.botCount > 5){
             return res.status(203).json({
                 message : "Bot creation failed !!!",
-                error : "Limit exceeded !!!"
+                error : "Limit exceeded !!!",
+                ok : false
             });
         };
 
@@ -154,6 +156,31 @@ const stopBot = async (req , res) => {
     }
 }
 
+
+const getAllBots = async (req , res) => {
+    try {
+        await dbConnect();
+
+        const user = req.user;
+        if(!user) return res.status(403).json({
+            message : "Request is not authenticated !!!",
+            ok : false
+        })
+        const allBots = await BotInstance.find({userId : new mongoose.Types.ObjectId(user._id)});
+
+        return res.status(200).json({
+            message : "Bot fetched succesfully !!!",
+            ok : true,
+            bots : allBots
+        });
+    } catch (error) {
+        return res.status(500).json({
+            message : "Internal Server error !",
+            error : error.message | error,
+            ok : false
+        })
+    }
+}
 
 export {
     createAutoBot,

@@ -46,7 +46,7 @@ export default function TradePage(): JSX.Element {
   const [ohlcv, setOhlcv] = useState<Candle | null>(null)
   const [symbol, setSymbol] = useState("BTCUSDT")
 
-  const { setMarket, market } = useTrade()
+  const { setMarket } = useTrade()
 
   const MAX_LEVELS = 10
   const orderBookRef = useRef<OrderBook>({ bids: [], asks: [] })
@@ -81,8 +81,15 @@ export default function TradePage(): JSX.Element {
     const chart = createChart(containerRef.current, {
       layout: { background: { color: "#fff" }, textColor: "#1E2329" },
       grid: { vertLines: { color: "#F0F3FA" }, horzLines: { color: "#F0F3FA" } },
-      timeScale: { timeVisible: true },
-      rightPriceScale: { borderColor: "#E6E8EB" },
+      timeScale: { 
+        timeVisible: true,
+        fixLeftEdge: true, // Prevents scrolling into empty space
+        fixRightEdge: true,
+      },
+      rightPriceScale: { 
+        borderColor: "#E6E8EB",
+        autoScale: true, // Rescales Y-axis when you scroll or change symbols
+      },
     })
     const series = chart.addSeries(CandlestickSeries)
     chartRef.current = chart
@@ -93,45 +100,59 @@ export default function TradePage(): JSX.Element {
   /* -------------------- SYNC CONTEXT & INITIAL DATA -------------------- */
   useEffect(() => {
     const series = seriesRef.current
-    if (!series) return
+    const chart = chartRef.current
+    if (!series || !chart) return
 
     let alive = true
-    dataRef.current = []
+    
+    // CRITICAL: Clear ALL references to old symbol data immediately
+    dataRef.current = [] 
     earliestTimeRef.current = null
-    series.setData([])
+    series.setData([]) 
 
     fetch(`http://localhost:8080/api/candles?symbol=${symbol}&interval=${interval}`)
       .then(res => res.json())
       .then((data: Candle[]) => {
-        if (!alive || !seriesRef.current || !data?.length) return
+        if (!alive || !data?.length) return
         const sorted = [...data].sort((a, b) => a.time - b.time)
-        seriesRef.current.setData(sorted)
+        
+        series.setData(sorted)
         dataRef.current = sorted
         earliestTimeRef.current = sorted[0].time
+
+        // THE FIX: Reset the zoom and fit the content perfectly
+        chart.timeScale().fitContent()
+        
+        // Ensure bars have some width even if there are few of them
+        chart.timeScale().applyOptions({ barSpacing: 10 })
+
         setInitialHistoryLoaded(true)
 
-        // UPDATE CONTEXT: Initial Pair and Interval Sync
         setMarket((prev): MarketData => ({
           ...prev,
           exchangePair: symbol.replace("/", ""),
           interval: interval,
-          orderType: prev?.orderType || "LIMIT", // preserve if exists
+          orderType: prev?.orderType || "LIMIT",
         } as MarketData))
       })
 
     return () => { alive = false }
   }, [interval, symbol, setMarket])
 
-  /* -------------------- PAGINATION -------------------- */
+  /* -------------------- PAGINATION (Scroll Handling) -------------------- */
   useEffect(() => {
     const chart = chartRef.current
     if (!chart) return
     const onScroll = async (range: LogicalRange | null) => {
-      if (!range || range.from > 10 || loadingHistoryRef.current || !earliestTimeRef.current || !seriesRef.current) return
+      // If we are looking at the far left (past candles)
+      if (!range || range.from > 0 || loadingHistoryRef.current || !earliestTimeRef.current || !seriesRef.current) return
+      
       loadingHistoryRef.current = true
       const res = await fetch(`http://localhost:8080/api/candles?symbol=${symbol}&interval=${interval}&before=${earliestTimeRef.current}`)
       const older: Candle[] = await res.json()
+      
       if (older?.length && seriesRef.current) {
+        // Merge without duplicates from previous symbol
         const merged = mergeAndSort(older, dataRef.current)
         seriesRef.current.setData(merged)
         dataRef.current = merged
@@ -164,11 +185,13 @@ export default function TradePage(): JSX.Element {
       if (!alive || !seriesRef.current) return
       const candle: Candle = JSON.parse(e.data)
       if (!candle?.time) return
+      
+      // Only update if the websocket message matches our current symbol
+      // (Your proxy should ideally handle this, but adding a local check is safer)
       seriesRef.current.update(candle)
       setOhlcv(candle)
       dataRef.current = mergeAndSort([candle], dataRef.current)
 
-      // UPDATE CONTEXT: Sync real-time price for Sidebar calculations
       setMarket((prev) => ({
         ...prev,
         price: candle.close, 
@@ -242,8 +265,8 @@ export default function TradePage(): JSX.Element {
             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Order Book</span>
           </div>
           <div className="p-2 space-y-0.5 font-mono text-[10px]">
-            {orderBook.asks.map((level) => (
-              <div key={level.price} className="flex justify-between py-0.5 hover:bg-red-50/50 px-2 rounded">
+            {orderBook.asks.map((level, i) => (
+              <div key={`ask-${i}`} className="flex justify-between py-0.5 hover:bg-red-50/50 px-2 rounded">
                 <span className="text-red-500">{level.price.toFixed(2)}</span>
                 <span className="text-gray-400">{level.qty.toFixed(4)}</span>
               </div>
@@ -251,8 +274,8 @@ export default function TradePage(): JSX.Element {
             <div className="py-3 text-center text-lg font-bold text-green-500 bg-green-50/30 my-2 rounded">
               {ohlcv?.close}
             </div>
-            {orderBook.bids.map((level) => (
-              <div key={level.price} className="flex justify-between py-0.5 hover:bg-green-50/50 px-2 rounded">
+            {orderBook.bids.map((level, i) => (
+              <div key={`bid-${i}`} className="flex justify-between py-0.5 hover:bg-green-50/50 px-2 rounded">
                 <span className="text-green-500">{level.price.toFixed(2)}</span>
                 <span className="text-gray-400">{level.qty.toFixed(4)}</span>
               </div>

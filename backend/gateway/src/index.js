@@ -52,10 +52,12 @@ function alignEndTime(timestampMs, interval) {
   return Math.floor(timestampMs / step) * step
 }
 
+let sym;
 
 app.get("/api/candles", async (req, res) => {
   try {
-    const { symbol = "BTCUSDT", interval = "1m", before } = req.query
+    const { symbol , interval , before } = req.query
+    sym = symbol
 
     const LOOKBACK_DAYS = {
       "1m": 30,
@@ -126,7 +128,7 @@ wss.on("connection", (client) => {
   console.log("Client connected")
 
   const binanceWS = new WebSocket(
-    "wss://stream.binance.com/ws/btcusdt@kline_1m"
+    `wss://stream.binance.com/ws/${sym.toLowerCase()}@kline_1m`
   )
 
   binanceWS.onmessage = (event) => {
