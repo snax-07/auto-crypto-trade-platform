@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, JSX } from "react"
+import { useEffect, useRef, useState, JSX, ChangeEventHandler, ChangeEvent } from "react"
 import {
   createChart,
   CandlestickSeries,
@@ -30,6 +30,12 @@ type OrderBookLevel = {
 type OrderBook = {
   bids: OrderBookLevel[]
   asks: OrderBookLevel[]
+}
+
+type BinanceSnapshot = {
+  lastUpdateId: number;
+  bids: [string, string][]; // Array of [price, quantity] tuples as strings
+  asks: [string, string][]; // Array of [price, quantity] tuples as strings
 }
 
 export default function TradePage(): JSX.Element {
@@ -94,6 +100,7 @@ export default function TradePage(): JSX.Element {
     const series = chart.addSeries(CandlestickSeries)
     chartRef.current = chart
     seriesRef.current = series
+    chart.autoSizeActive()
     return () => chart.remove()
   }, [])
 
@@ -109,9 +116,8 @@ export default function TradePage(): JSX.Element {
     dataRef.current = [] 
     earliestTimeRef.current = null
     series.setData([]) 
-
     fetch(`http://localhost:8080/api/candles?symbol=${symbol}&interval=${interval}`)
-      .then(res => res.json())
+      .then(res => res.json() as Promise<Candle[]>)
       .then((data: Candle[]) => {
         if (!alive || !data?.length) return
         const sorted = [...data].sort((a, b) => a.time - b.time)
@@ -120,24 +126,24 @@ export default function TradePage(): JSX.Element {
         dataRef.current = sorted
         earliestTimeRef.current = sorted[0].time
 
-        // THE FIX: Reset the zoom and fit the content perfectly
-        chart.timeScale().fitContent()
-        
-        // Ensure bars have some width even if there are few of them
-        chart.timeScale().applyOptions({ barSpacing: 10 })
+        // --- ADD THESE TWO LINES ---
+        const latest = sorted[sorted.length - 1]
+        setOhlcv(latest) // This removes the 'null' immediately!
+        // ---------------------------
 
+        chart.timeScale().fitContent()
         setInitialHistoryLoaded(true)
 
         setMarket((prev): MarketData => ({
           ...prev,
-          exchangePair: symbol.replace("/", ""),
+          exchangePair: symbol,
           interval: interval,
-          orderType: prev?.orderType || "LIMIT",
+          price: latest.close, // Also update market context
         } as MarketData))
       })
 
     return () => { alive = false }
-  }, [interval, symbol, setMarket])
+}, [interval, symbol, setMarket])
 
   /* -------------------- PAGINATION (Scroll Handling) -------------------- */
   useEffect(() => {
@@ -149,7 +155,7 @@ export default function TradePage(): JSX.Element {
       
       loadingHistoryRef.current = true
       const res = await fetch(`http://localhost:8080/api/candles?symbol=${symbol}&interval=${interval}&before=${earliestTimeRef.current}`)
-      const older: Candle[] = await res.json()
+      const older: Candle[] = await res.json() as Candle[]
       
       if (older?.length && seriesRef.current) {
         // Merge without duplicates from previous symbol
@@ -165,70 +171,110 @@ export default function TradePage(): JSX.Element {
   }, [interval, symbol])
 
   /* -------------------- LIVE WS & PRICE SYNC -------------------- */
-  useEffect(() => {
+ /* -------------------- LIVE WS & PRICE SYNC -------------------- */
+useEffect(() => {
     let alive = true
-    orderBookReadyRef.current = false
+    
+    // Dynamic URL based on current symbol
+    const candleWS = new WebSocket(`ws://localhost:8081?symbol=${symbol}`)
 
-    fetch(`https://api.binance.com/api/v3/depth?symbol=${symbol.replace("/", "").toUpperCase()}&limit=10`)
-      .then(res => res.json())
+    // 1. Update initial snapshot to 20
+    fetch(`https://api.binance.com/api/v3/depth?symbol=${symbol.toUpperCase()}&limit=20`)
+      .then(res => res.json() as Promise<BinanceSnapshot>)
       .then(snapshot => {
-        if (!alive) return
-        orderBookRef.current.bids = snapshot.bids.map(([p, q]: [string, string]) => ({ price: +p, qty: +q }))
-        orderBookRef.current.asks = snapshot.asks.map(([p, q]: [string, string]) => ({ price: +p, qty: +q }))
-        orderBookReadyRef.current = true
-      })
+        if (!alive) return;
+        orderBookRef.current.bids = snapshot.bids.map(([p, q]: [string, string]) => ({ price: +p, qty: +q }));
+        orderBookRef.current.asks = snapshot.asks.map(([p, q]: [string, string]) => ({ price: +p, qty: +q }));
+        orderBookReadyRef.current = true;
+      });
 
-    const candleWS = new WebSocket("ws://localhost:8081")
-    const depthWS = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.replace("/", "").toLowerCase()}@depth10@100ms`)
-
-    candleWS.onmessage = e => {
-      if (!alive || !seriesRef.current) return
-      const candle: Candle = JSON.parse(e.data)
-      if (!candle?.time) return
-      
-      // Only update if the websocket message matches our current symbol
-      // (Your proxy should ideally handle this, but adding a local check is safer)
-      seriesRef.current.update(candle)
-      setOhlcv(candle)
-      dataRef.current = mergeAndSort([candle], dataRef.current)
-
-      setMarket((prev) => ({
-        ...prev,
-        price: candle.close, 
-      } as MarketData))
-    }
+    // 2. Change the stream from @depth10 to @depth20
+    const depthWS = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.replace("/", "").toLowerCase()}@depth20@100ms`);
+    
+    // ... rest of your candleWS logic ...
 
     depthWS.onmessage = e => {
-      if (!alive || !orderBookReadyRef.current) return
-      const data = JSON.parse(e.data)
-      orderBookRef.current.bids = updateOrderBook(orderBookRef.current.bids, data.bids, true)
-      orderBookRef.current.asks = updateOrderBook(orderBookRef.current.asks, data.asks, false)
+      if (!alive || !orderBookReadyRef.current) return;
+      const data = JSON.parse(e.data);
+      
+      // The updateOrderBook helper already uses MAX_LEVELS, so it will now keep 20
+      orderBookRef.current.bids = updateOrderBook(orderBookRef.current.bids, data.bids, true);
+      orderBookRef.current.asks = updateOrderBook(orderBookRef.current.asks, data.asks, false);
+    };
+
+
+    candleWS.onopen = () => {
+        if (alive) {
+            // Tell the backend to specifically subscribe to this symbol
+            candleWS.send(JSON.stringify({ 
+                type: "SUBSCRIBE", 
+                symbol: symbol 
+            }))
+        }
     }
 
-    const id = setInterval(() => {
-      if (alive) setOrderBook({ bids: [...orderBookRef.current.bids], asks: [...orderBookRef.current.asks] })
-    }, 150)
+    candleWS.onmessage = e => {
+        if (!alive || !seriesRef.current) return
+        try {
+            const data = JSON.parse(e.data)
+            
+            // Binance sends raw kline data, we must map it to our Candle type
+            // Note: If your backend already maps this, keep your current mapping logic
+            const candle: Candle = {
+                time: data.k ? data.k.t / 1000 : data.time,
+                open: data.k ? +data.k.o : data.open,
+                high: data.k ? +data.k.h : data.high,
+                low: data.k ? +data.k.l : data.low,
+                close: data.k ? +data.k.c : data.close,
+            }
+
+            seriesRef.current.update(candle)
+            setOhlcv(candle)
+            
+            setMarket((prev) => ({ ...prev, price: candle.close } as MarketData))
+        } catch (err) {
+            console.error("WS Parse Error", err)
+        }
+    }
+    
+
+    // Inside the live WS useEffect
+const id = setInterval(() => {
+  if (alive && orderBookReadyRef.current) {
+    setOrderBook({
+      bids: [...orderBookRef.current.bids],
+      asks: [...orderBookRef.current.asks]
+    });
+  }
+}, 200); // Updates UI every 200ms
 
     return () => {
-      alive = false
-      clearInterval(id)
-      candleWS.close()
-      depthWS.close()
+        alive = false
+        candleWS.close()
+        depthWS.close()
+        clearInterval(id)
     }
-  }, [symbol, interval, setMarket])
+}, [symbol, interval , setMarket]) // Ensure 'symbol' is in the dependency array
 
+
+console.log(orderBook)
   return (
     <>
       <div className="bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-center gap-6 shadow-sm">
         <div className="flex items-center gap-4 border-r border-gray-100 pr-6">
-          <select 
-            value={symbol} onChange={(e) => setSymbol(e.target.value)}
-            className="font-black text-lg bg-transparent border-none outline-none cursor-pointer"
-          >
-            <option value="BTCUSDT">BTC/USDT</option>
-            <option value="ETHUSDT">ETH/USDT</option>
-            <option value="SOLUSDT">SOL/USDT</option>
-          </select>
+         <select 
+          value={symbol} 
+          // 5. FIX: Double-cast to bypass strict EventTarget checks
+          onChange={(e) => {
+            const target = e.target as any
+            setSymbol(target.value);
+          }}
+          className="font-bold text-lg outline-none cursor-pointer"
+        >
+          <option value="BTCUSDT">BTC/USDT</option>
+          <option value="ETHUSDT">ETH/USDT</option>
+          <option value="SOLUSDT">SOL/USDT</option>
+        </select>
           <span className="text-green-500 font-bold text-lg">{ohlcv?.close}</span>
         </div>
 
@@ -286,3 +332,4 @@ export default function TradePage(): JSX.Element {
     </>
   )
 }
+

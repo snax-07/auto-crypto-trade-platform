@@ -28,12 +28,20 @@ type TradeType = 'manual' | 'bot';
 type OrderMode = 'LIMIT' | 'MARKET'; // Capitalized to match API standards
 type StrategyType = 'swing' | 'grid' | 'martingale' | 'arbitrage';
 type MarketInputType = 'amount' | 'total';
-type Tab = "history" | "open";
+type Tab = "history" | "bots";
 
 interface BotField {
   id: string;
   label: string;
   val: string;
+}
+
+interface Bots {
+  k8sPodName : string;
+  name : string;
+  status : string;
+  pair : string;
+  strategy : string;
 }
 
 export default function Trading() {
@@ -53,6 +61,8 @@ export default function Trading() {
   const {user} = useAuth();
   const [isDigOpen , setIsDigOpen] = useState(false);
   const [isBotLaunching , setIsBotLaunching] = useState(false);
+  const [bots, setBots] = useState<Bots[]>([]);
+
   const botQuantity = useRef<HTMLInputElement | null>(null)
   const [marketInputType, setMarketInputType] = useState<MarketInputType>('amount');
   const [botFields, setBotFields] = useState<BotField[]>([
@@ -83,6 +93,25 @@ export default function Trading() {
         };
       });
     }
+
+   const allBots = async () => {
+     try {
+      
+      const response = await axios.get("http://localhost:8080/api/v1/bot/getBots" , {withCredentials : true});
+      if(!response.data.ok) {
+        toast.info(response.data.message)
+        return
+      }
+
+      setBots(response.data.bots);
+
+    } catch (error) {
+      toast.error("Bot fetching error !!")
+    }
+   }
+
+   allBots()
+   console.log("BOTS :: ", bots)
   }, [orderMode, limitPrice, quantity, marketValue, marketInputType, activeSideTab, setMarket]);
 
   // 2. Sync Bot Strategy to Context
@@ -136,7 +165,7 @@ const LaunchBot = async ()=> {
     const payload = {
       exchangePair : market?.exchangePair,
       strategy : selectedStrategy,
-      quantity : botQuantity.current?.value,
+      quantity : (botQuantity.current as any)?.value,
       timeFrame : market?.interval
     }
 
@@ -154,6 +183,11 @@ const LaunchBot = async ()=> {
   }
 }
 
+const handleStopBot = async (id : string)=> {
+
+}
+
+console.log(bots)
   return (
        <div className="min-h-screen bg-[#F9FAFB] text-slate-900 flex flex-col font-sans">
       
@@ -176,12 +210,13 @@ const LaunchBot = async ()=> {
           <TradePage />
 
           <div className="h-60 bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
+  {/* Tabs Header */}
   <div className="flex border-b border-gray-50 px-6 gap-8">
     <button
       onClick={() => setActiveTab("history")}
-      className={`py-4 text-[10px] uppercase tracking-widest border-b-2 ${
+      className={`py-4 text-[10px] uppercase tracking-widest border-b-2 transition-all ${
         activeTab === "history"
-          ? "font-black border-black"
+          ? "font-black border-black text-black"
           : "font-bold text-gray-300 border-transparent"
       }`}
     >
@@ -189,93 +224,94 @@ const LaunchBot = async ()=> {
     </button>
 
     <button
-      onClick={() => setActiveTab("open")}
-      className={`py-4 text-[10px] uppercase tracking-widest border-b-2 ${
-        activeTab === "open"
-          ? "font-black border-black"
+      onClick={() => setActiveTab("bots")}
+      className={`py-4 text-[10px] uppercase tracking-widest border-b-2 transition-all ${
+        activeTab === "bots"
+          ? "font-black border-black text-black"
           : "font-bold text-gray-300 border-transparent"
       }`}
     >
-      Open Orders
+      My Bots
     </button>
   </div>
 
   <div className="flex-grow p-4 overflow-y-auto">
     <table className="w-full text-left text-[11px]">
       <thead className="text-gray-400 uppercase">
-        <tr>
-          <th className="pb-3">Time</th>
-          <th className="pb-3">Pair</th>
-          <th className="pb-3">Side</th>
-          <th className="pb-3">Action</th>
-          <th className="pb-3">Total</th>
-          <th className="pb-3">Status</th>
-        </tr>
+        {activeTab === "history" ? (
+          <tr>
+            <th className="pb-3">Time</th>
+            <th className="pb-3">Pair</th>
+            <th className="pb-3">Side</th>
+            <th className="pb-3">Total</th>
+            <th className="pb-3">Status</th>
+          </tr>
+        ) : (
+          <tr>
+            <th className="pb-3">Bot Name</th>
+            <th className="pb-3">Strategy</th>
+            <th className="pb-3">Status</th>
+            <th className="pb-3 text-right">Action</th>
+          </tr>
+        )}
       </thead>
 
       <tbody className="text-gray-600 font-medium text-[10px]">
-        {(activeTab === "history"
-          ? executionOrder.filter(o => o.status !== "OPEN")
-          : executionOrder.filter(o => o.status === "OPEN")
-        ).length > 0 ? (
-          (activeTab === "history"
-            ? executionOrder.filter(o => o.status !== "OPEN")
-            : executionOrder.filter(o => o.status === "OPEN")
-          ).map((order, i) => (
-            <tr
-              key={order._id || i}
-              className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
-            >
-              <td className="py-3 font-mono text-gray-400">
-                {new Date(order.time).toLocaleDateString()}
-              </td>
-
-              <td className="py-3 font-black text-black">
-                {order.symbol || "BTCUSDT"}
-              </td>
-
-              <td className="py-3">
-                <span
-                  className={`px-2 py-0.5 rounded-md font-black uppercase text-[9px] ${
-                    order.side === "BUY"
-                      ? "bg-green-100 text-green-600"
-                      : "bg-red-100 text-red-600"
-                  }`}
-                >
-                  {order.side || "BUY"}
-                </span>
-              </td>
-
-              <td className="py-3 font-mono">
-                {order.actionowner || "Manual"}
-              </td>
-
-              <td className="py-3 font-mono text-black">
-                {order.total
-                  ? `${Number(order.total).toFixed(2)} USDT`
-                  : "-"}
-              </td>
-
-              <td className="py-3 font-mono text-black">
-                {order.status || "-"}
-              </td>
-            </tr>
-          ))
+        {activeTab === "history" ? (
+          // --- HISTORY TAB CONTENT ---
+          executionOrder.filter(o => o.status !== "OPEN").length > 0 ? (
+            executionOrder.filter(o => o.status !== "OPEN").map((order, i) => (
+              <tr key={order._id || i} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="py-3 font-mono text-gray-400">{new Date(order.time).toLocaleDateString()}</td>
+                <td className="py-3 font-black text-black">{order.symbol || "BTCUSDT"}</td>
+                <td className="py-3">
+                  <span className={`px-2 py-0.5 rounded-md font-black uppercase text-[9px] ${order.side === "BUY" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}>
+                    {order.side || "BUY"}
+                  </span>
+                </td>
+                <td className="py-3 font-mono text-black">{order.total ? `${Number(order.total).toFixed(2)} USDT` : "-"}</td>
+                <td className="py-3 font-mono text-black">{order.status || "-"}</td>
+              </tr>
+            ))
+          ) : (
+            <tr><td colSpan={5} className="py-10 text-center text-gray-300 uppercase">No history</td></tr>
+          )
         ) : (
-          <tr>
-            <td
-              colSpan={6}
-              className="py-20 text-center text-gray-300 uppercase tracking-widest font-black text-[10px]"
-            >
-              No recent activity
-            </td>
-          </tr>
+          // --- BOTS TAB CONTENT ---
+          bots.length > 0 ? (
+            bots.map((bot) => (
+              <tr key={bot.k8sPodName} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                <td className="py-3 font-black text-black uppercase">{`${bot.name.split(" ")[0].substring(0 ,4)}-${bot.pair}`}</td>
+                <td className="py-3 font-mono text-gray-400">{bot.strategy}</td>
+                <td className="py-3">
+                  <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${
+                    bot.status === "RUNNING" ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
+                  }`}>
+                    {bot.status}
+                  </span>
+                </td>
+                <td className="py-3 text-right">
+                  {bot.status === "RUNNING" ? (
+                    <button
+                      onClick={() => handleStopBot(bot.k8sPodName)}
+                      className="bg-red-50 text-red-600 px-3 py-1 rounded-md font-black text-[9px] hover:bg-red-600 hover:text-white transition-all uppercase"
+                    >
+                      Stop Bot
+                    </button>
+                  ) : (
+                    <span className="text-gray-300 italic pr-3 text-[9px]">{bot.status}</span>
+                  )}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr><td colSpan={4} className="py-10 text-center text-gray-300 uppercase">No bots found</td></tr>
+          )
         )}
       </tbody>
     </table>
   </div>
 </div>
-
         </div>
 
         <aside className="w-full lg:w-[400px] bg-white border border-gray-200 rounded-3xl shadow-sm flex flex-col shrink-0 overflow-y-auto">
@@ -313,7 +349,7 @@ const LaunchBot = async ()=> {
                         <input 
                           type="text" 
                           value={limitPrice} 
-                          onChange={(e) => setLimitPrice(e.target.value)}
+                          onChange={(e) => setLimitPrice((e.target as HTMLInputElement as any).value)}
                           className="w-full bg-transparent font-mono text-lg outline-none" 
                         />
                       </div>
@@ -322,7 +358,7 @@ const LaunchBot = async ()=> {
                         <input 
                           type="text" 
                           value={quantity}
-                          onChange={(e) => setQuantity(e.target.value)}
+                          onChange={(e) => setQuantity((e.target as HTMLInputElement as any).value)}
                           placeholder="0.00" 
                           className="w-full bg-transparent font-mono text-lg outline-none" 
                         />
@@ -344,7 +380,7 @@ const LaunchBot = async ()=> {
                       <input 
                         type="text" 
                         value={marketValue}
-                        onChange={(e) => setMarketValue(e.target.value)}
+                        onChange={(e) => setMarketValue((e.target as HTMLInputElement as any).value)}
                         placeholder={marketInputType === 'amount' ? '0.00' : 'Enter Total USDT'} 
                         className="w-full bg-transparent font-mono text-lg outline-none" 
                       />

@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { all } from 'axios'
 import BotInstance from '../models/Bot-instance.js';
 import dbConnect from "../utils/dbConnect.js"
 import User from "../models/user.model.js";
@@ -65,7 +65,7 @@ const createAutoBot = async (req , res) => {
         });
         
         const newBot = new BotInstance({
-            userId : req.user?.id,
+            userId : req.user?._id,
             strategy,
             name : req.user.name,
             pair : exchangePair,
@@ -162,18 +162,19 @@ const getAllBots = async (req , res) => {
         await dbConnect();
 
         const user = req.user;
-        if(!user) return res.status(403).json({
+        if(!user) return res.status(410).json({
             message : "Request is not authenticated !!!",
             ok : false
         })
-        const allBots = await BotInstance.find({userId : new mongoose.Types.ObjectId(user._id)});
-
+        const allBots = await BotInstance.find({userId : new mongoose.Types.ObjectId(req.user.id)});
         return res.status(200).json({
             message : "Bot fetched succesfully !!!",
             ok : true,
             bots : allBots
         });
     } catch (error) {
+
+        console.log(error.message)
         return res.status(500).json({
             message : "Internal Server error !",
             error : error.message | error,
@@ -184,5 +185,6 @@ const getAllBots = async (req , res) => {
 
 export {
     createAutoBot,
-    stopBot
+    stopBot,
+    getAllBots
 }
