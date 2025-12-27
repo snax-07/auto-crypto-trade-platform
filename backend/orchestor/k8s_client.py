@@ -117,14 +117,16 @@ def obsidian_trade_pod_deforge(k8sApi , payload):
             existingPod = k8sApi.read_namespaced_pod(name = payload["botID"] , namespace = "default")
         except Exception as e:
             return {
-                "message" : "[ORCEHTRATOR] : Bot not found !!!"
+                "message" : "[ORCEHTRATOR] : Bot not found !!!",
+                "ok" : False
             }
         deletedPod = k8sApi.delete_namespaced_pod(name = payload["botID"] , namespace = "default");
         return {
-            "message" : "[ORCHESTRATOR] : Bot Successfully stopped !!!"
+            "message" : "[ORCHESTRATOR] : Bot Successfully stopped !!!",
+                "ok" : True
         }
     except Exception as e:
-        return {"message" : "[ORCHESTRATOR] : Internal server error" , "e" : e};
+        return {"message" : "[ORCHESTRATOR] : Internal server error"  , "ok" : False, "e" : e};
 
 
 

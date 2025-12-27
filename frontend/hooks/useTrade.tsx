@@ -46,6 +46,7 @@ export const MarketProvider = ({ children } : {children : React.ReactNode}) => {
         price : 0
 })
     const [executionOrder , setExecutionOrder] = useState<executedOrder[]>([])
+    const [symbols , setSymbols] = useState([])
     const {user} = useAuth();
 
     useEffect(() => {
@@ -59,7 +60,6 @@ export const MarketProvider = ({ children } : {children : React.ReactNode}) => {
             };
             setExecutionOrder(res.data.history)
         }
-
         fetchMarketGoods();
     }, []);
 

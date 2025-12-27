@@ -1,341 +1,248 @@
 "use client"
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, TrendingUp, BarChart3, History, ChevronRight, LayoutGrid, Zap, AlertTriangle, Info, Clock, ArrowRightLeft, AwardIcon } from 'lucide-react';
+import { TrendingUp, LayoutGrid, Zap, ArrowRightLeft } from 'lucide-react';
 import TradePage from '@/components/tradingCharts/tradingCharts';
 import { toast } from 'sonner';
-import { MarketData, MarketProvider, useTrade } from '@/hooks/useTrade';
+import { useTrade } from '@/hooks/useTrade';
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
-
-
-
-      import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 
 /*--------Types-------*/
 type TradeType = 'manual' | 'bot';
-type OrderMode = 'LIMIT' | 'MARKET'; // Capitalized to match API standards
-type StrategyType = 'swing' | 'grid' | 'martingale' | 'arbitrage';
+type OrderMode = 'LIMIT' | 'MARKET';
 type MarketInputType = 'amount' | 'total';
 type Tab = "history" | "bots";
 
-interface BotField {
-  id: string;
-  label: string;
-  val: string;
-}
-
-interface Bots {
-  k8sPodName : string;
-  name : string;
-  status : string;
-  pair : string;
-  strategy : string;
-}
-
 export default function Trading() {
-  /*---------------States-----------------*/
+  const { market, setMarket, executionOrder } = useTrade(); 
+  const { user } = useAuth();
+
+  /*---------------UI States-----------------*/
   const [activeSideTab, setActiveSideTab] = useState<TradeType>('manual');
   const [orderMode, setOrderMode] = useState<OrderMode>('LIMIT');
-  const [symbol, setSymbol] = useState('BTC/USDT');
-  const [selectedStrategy, setSelectedStrategy] = useState<StrategyType>('swing');
-  
-  // Local states for UI inputs before context sync
-  const [limitPrice, setLimitPrice] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [marketValue, setMarketValue] = useState("");
-
-  const [activeTab, setActiveTab] = useState<Tab>("history");
-  const { market, setMarket , executionOrder } = useTrade(); 
-  const {user} = useAuth();
-  const [isDigOpen , setIsDigOpen] = useState(false);
-  const [isBotLaunching , setIsBotLaunching] = useState(false);
-  const [bots, setBots] = useState<Bots[]>([]);
-
-  const botQuantity = useRef<HTMLInputElement | null>(null)
   const [marketInputType, setMarketInputType] = useState<MarketInputType>('amount');
-  const [botFields, setBotFields] = useState<BotField[]>([
-    { id: '1', label: 'Investment Amount', val: '0' }
-  ]);
+  const [activeTab, setActiveTab] = useState<Tab>("history");
 
-  const strategies = [
-    { id: 'swing', name: 'Swing Bot' },
-    { id: 'grid', name: 'Grid Trading' },
-    { id: 'martingale', name: 'Martingale' },
-    { id: 'arbitrage', name: 'Arbitrage' },
-  ];
+  const [bots , setBots] = useState([]);
+  
+  // Local input buffers
+  const [limitPrice, setLimitPrice] = useState("");
+  const [quantity, setQuantity] = useState("");      
+  const [marketValue, setMarketValue] = useState("");  
 
-  /*---------------Context Sync Logic-----------------*/
-  // 1. Sync Manual Trade Details to Context
- useEffect(() => {
+  /*---------------Logic Implementation---------------*/
+  // Synchronizes local UI inputs with the global MarketContext
+  useEffect(() => {
     if (activeSideTab === 'manual') {
-      setMarket((prev: MarketData) => {
-        // Ensure we return a complete MarketData object
+      setMarket((prev) => {
+        const isLimit = orderMode === 'LIMIT';
+        const isAmountMode = marketInputType === 'amount';
+
+        // IMPORTANT: We set unused fields to 0 so the Go backend 
+        // logic (if val > 0) correctly identifies the intent.
         return {
           ...prev,
           orderType: orderMode,
-          // If MarketData requires a number, use 0 or current market price for MARKET orders
-          price: orderMode === 'LIMIT' ? Number(limitPrice) : 0, 
-          quantity: marketInputType === 'amount' ? Number(quantity || marketValue) : 0,
-          quoteOrderQty: marketInputType === 'total' ? Number(marketValue) : 0,
+          price: isLimit ? Number(limitPrice) : 0, 
+          quantity: (isLimit || isAmountMode) ? Number(quantity) : 0,
+          quoteOrderQty: (!isLimit && !isAmountMode) ? Number(marketValue) : 0,
           strategy: "MANUAL"
         };
       });
-    }
+    };
 
-   const allBots = async () => {
-     try {
-      
-      const response = await axios.get("http://localhost:8080/api/v1/bot/getBots" , {withCredentials : true});
-      if(!response.data.ok) {
-        toast.info(response.data.message)
-        return
-      }
-
-      setBots(response.data.bots);
-
-    } catch (error) {
-      toast.error("Bot fetching error !!")
-    }
-   }
-
-   allBots()
-   console.log("BOTS :: ", bots)
+    (async ()=> {
+      const response = await axios.get("http://localhost:8080/api/v1/bot/getBots" , {withCredentials : true})
+      setBots(response.data.bots)
+    })()
   }, [orderMode, limitPrice, quantity, marketValue, marketInputType, activeSideTab, setMarket]);
 
-  // 2. Sync Bot Strategy to Context
-  useEffect(() => {
-    if (activeSideTab === 'bot') {
-      setMarket((prev) => ({
-        ...prev,
-        strategy: selectedStrategy.toUpperCase(),
-        orderType: "BOT_EXECUTION"
-      }));
-    }
-  }, [activeSideTab, selectedStrategy, setMarket]);
+  const handleSubmit = async (side: 'BUY' | 'SELL') => {
+    try {
+      // Create payload using current synced context state
+      const payload = {
+        pair: market?.exchangePair?.replace('/', ''), 
+        quantity: market?.quantity || 0,
+        quoteOrderQty: market?.quoteOrderQty || 0,
+        type: market?.orderType,
+        order_price: market?.price || 0,
+        side: side,
+      };
 
-  /*---------------Handlers-----------------*/
-  const addField = () => {
-    setBotFields([...botFields, { id: Date.now().toString(), label: 'Take Profit %', val: '5.0' }]);
+      const response = await axios.post("http://localhost:8080/api/v1/order/create", payload, { withCredentials: true });
+      
+      if (response.data.ok) {
+        toast.success(response.data.message);
+      } else {
+        toast.info(response.data.message);
+      }
+    } catch (error) {
+      toast.error("Execution failed. Please check your connection.");
+    }
   };
 
-const handleSubmit = async (side: 'BUY' | 'SELL') => {
-  try {
-    const response = await axios.post("http://localhost:8080/api/v1/order/create", {
-      pair: market?.exchangePair,
-      quantity: parseFloat(quantity), // Ensure number
-      quoteOrderQty: parseFloat(marketValue) || 0,
-      type: market?.orderType,
-      order_price: parseFloat(limitPrice), // Rename to match Go struct 'order_price'
-      side: side,
-    }, { withCredentials: true })
-    
-    if (!response.data.ok) {
-      toast.info(response.data.message);
-      return;
-    }
-    toast.success(response.data.message);
-  } catch (error) {
-    toast.error("Internal error");
-  }
-}
-
-
-const LaunchBot = async ()=> {
-  try {
-
-    // THIS WILL USED FOR VERIFYING THE USER AND MKAING SURE THAT THEY HAVE COMPLETED THE KYC VERIFICATION 
-    // if(!user?.isPanVerified){
-    //     setIsDigOpen(true);
-    //     return
-    // }
-    setIsBotLaunching(true);
-    
-    const payload = {
-      exchangePair : market?.exchangePair,
-      strategy : selectedStrategy,
-      quantity : (botQuantity.current as any)?.value,
-      timeFrame : market?.interval
-    }
-
-    console.log(payload)
-
-    const resp = await axios.post("http://localhost:8080/api/v1/bot/create" , payload , {withCredentials : true});
-    if(!resp.data.ok){
-      toast.info(resp.data.message);
-      setIsBotLaunching(false);
-    }
-
-    toast.success(resp.data.message);
-  } catch (error) {
-    toast.error("Internal error !!!")
-  }
-}
-
-const handleStopBot = async (id : string)=> {
-
-}
-
-console.log(bots)
+  console.log(bots)
   return (
-       <div className="min-h-screen bg-[#F9FAFB] text-slate-900 flex flex-col font-sans">
-      
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 justify-between shadow-sm z-30">
+    <div className="min-h-screen bg-[#F9FAFB] text-slate-900 flex flex-col font-sans">
+      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 justify-between shadow-sm">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
             <TrendingUp size={18} className="text-white" />
           </div>
           <span className="font-black text-xl tracking-tight">Snax Quantum</span>
         </div>
-        <div className="flex gap-4">
-          <button className="text-xs font-bold px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Log In</button>
-          <button className="text-xs font-bold px-4 py-2 bg-black text-white rounded-lg shadow-md">Sign Up</button>
-        </div>
       </header>
 
       <main className="flex flex-col lg:flex-row flex-1 p-3 gap-3 overflow-hidden">
-        
+        {/* Main Content Area */}
         <div className="flex flex-col flex-grow gap-3 min-w-0">
           <TradePage />
 
-          <div className="h-60 bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
-  {/* Tabs Header */}
-  <div className="flex border-b border-gray-50 px-6 gap-8">
-    <button
-      onClick={() => setActiveTab("history")}
-      className={`py-4 text-[10px] uppercase tracking-widest border-b-2 transition-all ${
-        activeTab === "history"
-          ? "font-black border-black text-black"
-          : "font-bold text-gray-300 border-transparent"
-      }`}
-    >
-      History
-    </button>
-
-    <button
-      onClick={() => setActiveTab("bots")}
-      className={`py-4 text-[10px] uppercase tracking-widest border-b-2 transition-all ${
-        activeTab === "bots"
-          ? "font-black border-black text-black"
-          : "font-bold text-gray-300 border-transparent"
-      }`}
-    >
-      My Bots
-    </button>
+          {/* Table History & Active Bots Section */}
+<div className="h-60 bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
+  {/* Tab Headers */}
+  <div className="flex border-b border-gray-50 px-6 gap-8 shrink-0">
+    {["history", "bots"].map((t) => (
+      <button
+        key={t}
+        onClick={() => setActiveTab(t as Tab)}
+        className={`py-4 text-[10px] uppercase tracking-widest border-b-2 transition-all ${
+          activeTab === t ? "font-black border-black text-black" : "font-bold text-gray-300 border-transparent"
+        }`}
+      >
+        {t}
+      </button>
+    ))}
   </div>
 
-  <div className="flex-grow p-4 overflow-y-auto">
-    <table className="w-full text-left text-[11px]">
-      <thead className="text-gray-400 uppercase">
-        {activeTab === "history" ? (
+  <div className="flex-grow p-4 overflow-y-auto bg-[#FBFBFC]">
+    {activeTab === "history" ? (
+      /* --- STANDARD HISTORY TABLE --- */
+      <table className="w-full text-left text-[11px]">
+        <thead className="text-gray-400 uppercase">
           <tr>
             <th className="pb-3">Time</th>
             <th className="pb-3">Pair</th>
             <th className="pb-3">Side</th>
-            <th className="pb-3">Total</th>
-            <th className="pb-3">Status</th>
+            <th className="pb-3">Price</th>
+            <th className="pb-3 text-right">Status</th>
           </tr>
-        ) : (
-          <tr>
-            <th className="pb-3">Bot Name</th>
-            <th className="pb-3">Strategy</th>
-            <th className="pb-3">Status</th>
-            <th className="pb-3 text-right">Action</th>
-          </tr>
-        )}
-      </thead>
+        </thead>
+        <tbody className="text-gray-600">
+          {executionOrder.map((order, idx) => (
+            <tr key={idx} className="border-b border-gray-50">
+              <td className="py-2">{new Date(order.time).toLocaleTimeString()}</td>
+              <td className="py-2 font-bold">{order.symbol}</td>
+              <td className={`py-2 ${order.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>{order.side}</td>
+              <td className="py-2 font-mono">{order.price}</td>
+              <td className="py-2 text-right uppercase font-black text-[9px]">{order.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    ) : (
+      /* --- ACTIVE BOTS CARD GRID (1/10 Split) --- */
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Example Active Bot Card */}
+        {activeTab === "bots" && (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {bots.map((bot: any) => {
+      // 1. Calculate PnL Logic
+      // Assuming 'market.price' is the live price from your WebSocket/Context
+      const entryPrice = bot.params?.bot_pod_spec?.entryPrice || 0;
+      const currentPrice = market?.price || 0;
+      
+      const pnlValue = entryPrice > 0 
+        ? ((currentPrice - entryPrice) / entryPrice) * 100 
+        : 0;
+      
+      const isPositive = pnlValue >= 0;
 
-      <tbody className="text-gray-600 font-medium text-[10px]">
-        {activeTab === "history" ? (
-          // --- HISTORY TAB CONTENT ---
-          executionOrder.filter(o => o.status !== "OPEN").length > 0 ? (
-            executionOrder.filter(o => o.status !== "OPEN").map((order, i) => (
-              <tr key={order._id || i} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="py-3 font-mono text-gray-400">{new Date(order.time).toLocaleDateString()}</td>
-                <td className="py-3 font-black text-black">{order.symbol || "BTCUSDT"}</td>
-                <td className="py-3">
-                  <span className={`px-2 py-0.5 rounded-md font-black uppercase text-[9px] ${order.side === "BUY" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}>
-                    {order.side || "BUY"}
-                  </span>
-                </td>
-                <td className="py-3 font-mono text-black">{order.total ? `${Number(order.total).toFixed(2)} USDT` : "-"}</td>
-                <td className="py-3 font-mono text-black">{order.status || "-"}</td>
-              </tr>
-            ))
-          ) : (
-            <tr><td colSpan={5} className="py-10 text-center text-gray-300 uppercase">No history</td></tr>
-          )
-        ) : (
-          // --- BOTS TAB CONTENT ---
-          bots.length > 0 ? (
-            bots.map((bot) => (
-              <tr key={bot.k8sPodName} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                <td className="py-3 font-black text-black uppercase">{`${bot.name.split(" ")[0].substring(0 ,4)}-${bot.pair}`}</td>
-                <td className="py-3 font-mono text-gray-400">{bot.strategy}</td>
-                <td className="py-3">
-                  <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${
-                    bot.status === "RUNNING" ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
-                  }`}>
-                    {bot.status}
-                  </span>
-                </td>
-                <td className="py-3 text-right">
-                  {bot.status === "RUNNING" ? (
-                    <button
-                      onClick={() => handleStopBot(bot.k8sPodName)}
-                      className="bg-red-50 text-red-600 px-3 py-1 rounded-md font-black text-[9px] hover:bg-red-600 hover:text-white transition-all uppercase"
-                    >
-                      Stop Bot
-                    </button>
-                  ) : (
-                    <span className="text-gray-300 italic pr-3 text-[9px]">{bot.status}</span>
-                  )}
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr><td colSpan={4} className="py-10 text-center text-gray-300 uppercase">No bots found</td></tr>
-          )
-        )}
-      </tbody>
-    </table>
+      return (
+        <div 
+          key={bot.id || bot.exchangePair} // Always use a unique ID if available
+          className="flex bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm h-28 group hover:border-black w-full transition-all"
+        >
+          {/* Left Side: 1/10 Brand/Status Strip */}
+          <div className="w-[10%] bg-black flex flex-col items-center justify-center gap-2 py-2">
+            <div className={`w-1 h-1 rounded-full animate-pulse ${bot.status === "running" ? "bg-green-500" : "bg-red-500"}`} />
+            <span className="[writing-mode:vertical-lr] rotate-180 text-[8px] font-black text-white uppercase tracking-tighter">
+              {bot.status === "running" ? "ACTIVE" : "STOPPED"}
+            </span>
+          </div>
+
+          {/* Right Side: Bot Data */}
+          <div className="flex-1 p-3 flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="text-[11px] font-black uppercase leading-tight">{bot?.exchangePair}</h4>
+                <p className="text-[9px] font-bold text-gray-400 uppercase">{bot.startegy} V1</p>
+              </div>
+              <div className="text-right">
+                <span className={`text-[10px] font-black ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                  {isPositive ? '+' : ''}{pnlValue.toFixed(2)}%
+                </span>
+                <p className="text-[8px] text-gray-300 font-bold uppercase">PnL (Unrealized)</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 border-t border-gray-50 pt-2">
+              <div className="flex flex-col">
+                <span className="text-[8px] font-black text-gray-400 uppercase">Qty</span>
+                <span className="text-[10px] font-bold font-mono truncate">
+                  {bot.params?.bot_pod_spec?.quantity}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[8px] font-black text-gray-400 uppercase">Timeframe</span>
+                <span className="text-[10px] font-bold font-mono">
+                  {bot.params?.bot_pod_spec?.timeFrame || '1h'}
+                </span>
+              </div>
+              <div className="flex flex-col items-end justify-center">
+                <button 
+                  onClick={() => {/* Call your stop bot API */}}
+                  className="text-[9px] font-black text-red-500 hover:scale-105 transition-transform uppercase"
+                >
+                  Stop Bot
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
+      </div>
+    )}
   </div>
 </div>
         </div>
 
-        <aside className="w-full lg:w-[400px] bg-white border border-gray-200 rounded-3xl shadow-sm flex flex-col shrink-0 overflow-y-auto">
-          
+        {/* Trade Controls Sidebar */}
+        <aside className="w-full lg:w-[400px] bg-white border border-gray-200 rounded-3xl shadow-sm flex flex-col shrink-0">
           <div className="p-4 flex gap-2 border-b border-gray-50">
             <button 
-              onClick={() => setActiveSideTab('manual')}
-              className={`flex-1 flex flex-col items-center py-3 rounded-2xl transition-all border-2 ${activeSideTab === 'manual' ? 'border-black bg-white shadow-md' : 'border-transparent bg-gray-50 text-gray-400'}`}
+              onClick={() => setActiveSideTab('manual')} 
+              className={`flex-1 flex flex-col items-center py-3 rounded-2xl border-2 transition-all ${activeSideTab === 'manual' ? 'border-black bg-white shadow-md' : 'bg-gray-50 text-gray-400 border-transparent'}`}
             >
               <Zap size={16} className="mb-1" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Manual Trade</span>
+              <span className="text-[10px] font-black uppercase">Manual Trade</span>
             </button>
             <button 
-              onClick={() => setActiveSideTab('bot')}
-              className={`flex-1 flex flex-col items-center py-3 rounded-2xl transition-all border-2 ${activeSideTab === 'bot' ? 'border-black bg-white shadow-md' : 'border-transparent bg-gray-50 text-gray-400'}`}
+              onClick={() => setActiveSideTab('bot')} 
+              className={`flex-1 flex flex-col items-center py-3 rounded-2xl border-2 transition-all ${activeSideTab === 'bot' ? 'border-black bg-white shadow-md' : 'bg-gray-50 text-gray-400 border-transparent'}`}
             >
               <LayoutGrid size={16} className="mb-1" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Trading Bot</span>
+              <span className="text-[10px] font-black uppercase">Trading Bot</span>
             </button>
           </div>
 
           <div className="p-6">
-            {activeSideTab === 'manual' ? (
-              <div className="space-y-6 animate-in fade-in duration-200">
+            {activeSideTab === 'manual' && (
+              <div className="space-y-6">
                 <div className="flex gap-4 border-b border-gray-50 text-xs font-bold pb-2">
                   <button onClick={() => setOrderMode('LIMIT')} className={`${orderMode === 'LIMIT' ? 'text-black border-b-2 border-black' : 'text-gray-300'} pb-2`}>Limit</button>
                   <button onClick={() => setOrderMode('MARKET')} className={`${orderMode === 'MARKET' ? 'text-black border-b-2 border-black' : 'text-gray-300'} pb-2`}>Market</button>
@@ -346,120 +253,134 @@ console.log(bots)
                     <>
                       <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                         <label className="text-[10px] font-black text-gray-400 uppercase block mb-2">Price (USDT)</label>
-                        <input 
-                          type="text" 
-                          value={limitPrice} 
-                          onChange={(e) => setLimitPrice((e.target as HTMLInputElement as any).value)}
-                          className="w-full bg-transparent font-mono text-lg outline-none" 
-                        />
+                        <input type="number" value={limitPrice} onChange={(e) => setLimitPrice((e.target as HTMLInputElement as any).value)} className="w-full bg-transparent font-mono text-lg outline-none" placeholder="0.00" />
                       </div>
                       <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-2">Quantity ({symbol.split('/')[0]})</label>
-                        <input 
-                          type="text" 
-                          value={quantity}
-                          onChange={(e) => setQuantity((e.target as HTMLInputElement as any).value)}
-                          placeholder="0.00" 
-                          className="w-full bg-transparent font-mono text-lg outline-none" 
-                        />
+                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-2">Quantity</label>
+                        <input type="number" value={quantity} onChange={(e) => setQuantity((e.target as HTMLInputElement as any).value)} className="w-full bg-transparent font-mono text-lg outline-none" placeholder="0.00" />
                       </div>
                     </>
                   ) : (
-                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 relative group">
+                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                       <div className="flex justify-between items-center mb-2">
                         <label className="text-[10px] font-black text-gray-400 uppercase">
-                          {marketInputType === 'amount' ? `Amount (${symbol.split('/')[0]})` : 'Total (USDT)'}
+                          {marketInputType === 'amount' ? 'Amount' : 'Total (USDT)'}
                         </label>
                         <button 
                           onClick={() => setMarketInputType(marketInputType === 'amount' ? 'total' : 'amount')}
-                          className="flex items-center gap-1 text-[9px] font-bold text-blue-500 hover:text-blue-700 uppercase"
+                          className="flex items-center gap-1 text-[9px] font-bold text-blue-500 uppercase"
                         >
-                          <ArrowRightLeft size={10} /> Switch to {marketInputType === 'amount' ? 'Total' : 'Amount'}
+                          <ArrowRightLeft size={10} /> Switch
                         </button>
                       </div>
                       <input 
-                        type="text" 
-                        value={marketValue}
-                        onChange={(e) => setMarketValue((e.target as HTMLInputElement as any).value)}
-                        placeholder={marketInputType === 'amount' ? '0.00' : 'Enter Total USDT'} 
+                        type="number" 
+                        value={marketInputType === 'amount' ? quantity : marketValue}
+                        onChange={(e) => marketInputType === 'amount' ? setQuantity((e.target as HTMLInputElement as any).value) : setMarketValue((e.target as HTMLInputElement as any).value)}
+                        placeholder="0.00"
                         className="w-full bg-transparent font-mono text-lg outline-none" 
                       />
                     </div>
                   )}
                   
-                  <div className="flex gap-2">
-                    {[25, 50, 75, 100].map(p => (
-                      <button key={p} className="flex-1 py-1.5 rounded-lg border border-gray-100 text-[10px] font-bold text-gray-400 hover:border-black hover:text-black transition-all">{p}%</button>
-                    ))}
-                  </div>
-
                   <div className="flex gap-3 pt-4">
-                    <button 
-                        className="flex-1 bg-green-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:brightness-110" 
-                        onClick={() => handleSubmit("BUY")}
-                    >
-                        Buy {symbol.split('/')[0]}
-                    </button>
-                    <button 
-                        className="flex-1 bg-red-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:brightness-110" 
-                        onClick={() => handleSubmit("SELL")}
-                    >
-                        Sell {symbol.split('/')[0]}
-                    </button>
+                    <Button className="flex-1 bg-green-500 hover:bg-green-600 h-14 rounded-2xl font-black text-white" onClick={() => handleSubmit("BUY")}>BUY</Button>
+                    <Button className="flex-1 bg-red-500 hover:bg-red-600 h-14 rounded-2xl font-black text-white" onClick={() => handleSubmit("SELL")}>SELL</Button>
                   </div>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="flex flex-wrap gap-2">
-                  {strategies.map((strat) => (
-                    <button
-                      key={strat.id}
-                      onClick={() => setSelectedStrategy(strat.id as StrategyType)}
-                      className={`px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-tighter transition-all border ${selectedStrategy === strat.id ? 'bg-black text-white' : 'bg-white text-gray-400'}`}
-                    >
-                      {strat.name}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="relative min-h-[300px]">
-                  {selectedStrategy !== 'swing' && (
-                    <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-gray-100">
-                      <Clock className="text-gray-300 mb-2" size={32} />
-                      <h4 className="font-black text-gray-800 uppercase text-xs">Coming Soon</h4>
+            )}
+            
+            {/* BOT TRADING VIEW */}
+            {activeSideTab === 'bot' && (
+              <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+                {/* Strategy Selection Tabs */}
+                <div className="flex flex-col gap-6">
+                  <div className="flex flex-col items-center text-center mb-4">
+                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                      <LayoutGrid size={32} className="text-black" />
                     </div>
-                  )}
+                    <h3 className="text-lg font-black uppercase tracking-tight">Select Bot Strategy</h3>
+                    <p className="text-[10px] font-medium text-gray-400 mt-1 uppercase tracking-widest">
+                      Quantum execution for {market?.exchangePair}
+                    </p>
+                  </div>
 
-                  <div className={`space-y-6 ${selectedStrategy !== 'swing' ? 'opacity-20 pointer-events-none' : ''}`}>
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-[11px] font-black uppercase text-gray-400 tracking-wider">Parameters</h3>
-                      <button onClick={addField} className="p-1.5 bg-gray-100 rounded-lg hover:bg-black hover:text-white"><Plus size={16} /></button>
-                    </div>
+                  {/* Tabs with Sliding Content */}
+                  <div className="bg-gray-50 p-1 rounded-2xl flex">
+                    {['swing', 'grid', 'scalp'].map((strat) => (
+                      <button
+                        key={strat}
+                        onClick={() => strat === 'swing' && setMarket((prev) => ({ ...prev, strategy: "SWING" }))}
+                        className={`flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all ${
+                          strat === 'swing' 
+                            ? 'bg-white shadow-sm text-black' 
+                            : 'text-gray-300 cursor-not-allowed'
+                        }`}
+                      >
+                        {strat} {strat !== 'swing' && " (Soon)"}
+                      </button>
+                    ))}
+                  </div>
 
-                    {botFields.map((field) => (
-                      <div key={field.id} className="bg-gray-50 p-4 rounded-2xl border border-transparent hover:border-black group">
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">{field.label}</label>
-                        <div className="flex justify-between">
-                          <input type="text" defaultValue={field.val} ref={botQuantity} className="bg-transparent font-mono text-sm outline-none w-full" />
-                          <button onClick={() => setBotFields(botFields.filter(f => f.id !== field.id))} className="text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
+                  {/* Sliding Parameter Panel (Swing Only) */}
+                  <div className="space-y-4 animate-in slide-in-from-bottom-2 duration-300">
+                    <div className="bg-white border border-gray-100 p-5 rounded-3xl shadow-sm space-y-5">
+                      <div className="flex items-center justify-between border-b border-gray-50 pb-3">
+                        <span className="text-[11px] font-black uppercase">Strategy Parameters</span>
+                        <Zap size={14} className="text-yellow-400 fill-yellow-400" />
+                      </div>
+                      
+                      {/* Active Input: Investment */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase">Investment Amount (USDT)</label>
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            className="w-full bg-gray-50 border-none rounded-xl p-4 font-mono text-lg outline-none focus:ring-2 focus:ring-black/5 transition-all"
+                            placeholder="0.00"
+                            onChange={(e) => setMarketValue((e.target as any).value)}
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-300">USDT</span>
                         </div>
                       </div>
-                    ))}
 
-                    <div className="space-y-3 bg-blue-50/30 p-4 rounded-2xl border border-blue-100/50">
-                      <div className="flex items-center gap-2 text-blue-600 font-bold text-[10px] uppercase"><Info size={14} /> Bot Configuration</div>
-                      <div className="grid grid-cols-2 gap-4 text-[10px]">
-                        <div><span className="text-gray-400 block uppercase font-black text-[8px]">Order Type</span><span className="font-bold">Market</span></div>
-                        <div><span className="text-gray-400 block uppercase font-black text-[8px]">Timeframe</span><span className="font-bold">1H</span></div>
-                      </div>
-                      <div className="flex items-start gap-2 pt-2 border-t border-blue-100/30">
-                        <AlertTriangle size={14} className="text-amber-500 shrink-0" />
-                        <p className="text-[9px] text-gray-500">Note: Stopping the bot executes a <span className="font-bold text-red-500 underline">Market Sell</span> for all active positions.</p>
+                      {/* Disabled/Coming Soon Inputs */}
+                      <div className="grid grid-cols-2 gap-3 opacity-40">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-400 uppercase">Take Profit</label>
+                          <div className="bg-gray-50 rounded-xl p-3 text-xs font-mono text-gray-400 italic">Coming Soon</div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-gray-400 uppercase">Stop Loss</label>
+                          <div className="bg-gray-50 rounded-xl p-3 text-xs font-mono text-gray-400 italic">Coming Soon</div>
+                        </div>
+                        <div className="space-y-1 col-span-2">
+                          <label className="text-[9px] font-black text-gray-400 uppercase">Time Interval</label>
+                          <div className="bg-gray-50 rounded-xl p-3 text-xs font-mono text-gray-400 italic">Coming Soon (1h Default)</div>
+                        </div>
                       </div>
                     </div>
 
-                    <button onClick={LaunchBot} className="w-full bg-black text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] shadow-xl">Launch Strategy</button>
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          const payload = {
+                            symbol: market?.exchangePair?.replace('/', ''),
+                            strategy: "SWING",
+                            amount: Number(marketValue),
+                            user_id: user?._id
+                          };
+                          const res = await axios.post("http://localhost:8080/api/v1/bot/launch", payload);
+                          if (res.data.ok) toast.success("Swing Bot Launched!");
+                        } catch (e) {
+                          toast.error("Launch failed. Check balance.");
+                        }
+                      }}
+                      className="w-full bg-black h-16 rounded-2xl font-black text-white uppercase tracking-widest text-[11px] hover:scale-[1.01] active:scale-95 transition-all shadow-lg shadow-black/10"
+                    >
+                      Launch Automated Bot
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -467,25 +388,6 @@ console.log(bots)
           </div>
         </aside>
       </main>
-
-    <Dialog open={isDigOpen} onOpenChange={setIsDigOpen}>
-      <form>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>KYC</DialogTitle>
-          </DialogHeader>
-            <p>You must finish verification before launching the bot!</p>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button type="submit">Save changes(TEMP)</Button>
-          </DialogFooter>
-        </DialogContent>
-      </form>
-    </Dialog>
-
-
     </div>
   );
 }

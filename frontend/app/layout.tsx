@@ -4,6 +4,9 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/hooks/useAuth";
 import { MarketProvider } from "@/hooks/useTrade";
+import { QueryClientProvider } from "@tanstack/react-query";
+import Providers from "@/hooks/reactQueryProvider";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,8 +34,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white`}
       >
       <AuthProvider>
-            {children}
-        <Toaster />
+        <Providers>
+                      {children}
+                <Toaster />
+
+        </Providers>
       </AuthProvider>
       </body>
     </html>

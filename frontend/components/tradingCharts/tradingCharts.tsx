@@ -1,6 +1,23 @@
 "use client"
+import * as React from "react"
+import { Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
-import { useEffect, useRef, useState, JSX, ChangeEventHandler, ChangeEvent } from "react"
+import { useEffect, useRef, useState, JSX } from "react"
 import {
   createChart,
   CandlestickSeries,
@@ -10,6 +27,7 @@ import {
   UTCTimestamp,
 } from "lightweight-charts"
 import { useTrade, MarketData } from "@/hooks/useTrade"
+import { useExchangeInfo } from "@/hooks/useSymbols"
 
 /* -------------------- TYPES -------------------- */
 type Candle = {
@@ -34,8 +52,8 @@ type OrderBook = {
 
 type BinanceSnapshot = {
   lastUpdateId: number;
-  bids: [string, string][]; // Array of [price, quantity] tuples as strings
-  asks: [string, string][]; // Array of [price, quantity] tuples as strings
+  bids: [string, string][]; 
+  asks: [string, string][]; 
 }
 
 export default function TradePage(): JSX.Element {
@@ -58,6 +76,12 @@ export default function TradePage(): JSX.Element {
   const orderBookRef = useRef<OrderBook>({ bids: [], asks: [] })
   const orderBookReadyRef = useRef(false)
   const [orderBook, setOrderBook] = useState<OrderBook>({ bids: [], asks: [] })
+
+  // FIX: Provide default empty array to prevent .map() error on initial load
+  const { data = [] } = useExchangeInfo()
+
+  const [open, setOpen] = React.useState(false)
+  const [value, setValue] = React.useState("")
 
   /* -------------------- HELPERS -------------------- */
   function mergeAndSort(older: readonly Candle[], current: readonly Candle[]): Candle[] {
@@ -89,12 +113,12 @@ export default function TradePage(): JSX.Element {
       grid: { vertLines: { color: "#F0F3FA" }, horzLines: { color: "#F0F3FA" } },
       timeScale: { 
         timeVisible: true,
-        fixLeftEdge: true, // Prevents scrolling into empty space
+        fixLeftEdge: true,
         fixRightEdge: true,
       },
       rightPriceScale: { 
         borderColor: "#E6E8EB",
-        autoScale: true, // Rescales Y-axis when you scroll or change symbols
+        autoScale: true,
       },
     })
     const series = chart.addSeries(CandlestickSeries)
@@ -111,11 +135,10 @@ export default function TradePage(): JSX.Element {
     if (!series || !chart) return
 
     let alive = true
-    
-    // CRITICAL: Clear ALL references to old symbol data immediately
     dataRef.current = [] 
     earliestTimeRef.current = null
     series.setData([]) 
+
     fetch(`http://localhost:8080/api/candles?symbol=${symbol}&interval=${interval}`)
       .then(res => res.json() as Promise<Candle[]>)
       .then((data: Candle[]) => {
@@ -126,10 +149,8 @@ export default function TradePage(): JSX.Element {
         dataRef.current = sorted
         earliestTimeRef.current = sorted[0].time
 
-        // --- ADD THESE TWO LINES ---
         const latest = sorted[sorted.length - 1]
-        setOhlcv(latest) // This removes the 'null' immediately!
-        // ---------------------------
+        setOhlcv(latest)
 
         chart.timeScale().fitContent()
         setInitialHistoryLoaded(true)
@@ -138,19 +159,18 @@ export default function TradePage(): JSX.Element {
           ...prev,
           exchangePair: symbol,
           interval: interval,
-          price: latest.close, // Also update market context
+          price: latest.close,
         } as MarketData))
       })
 
     return () => { alive = false }
-}, [interval, symbol, setMarket])
+  }, [interval, symbol, setMarket])
 
-  /* -------------------- PAGINATION (Scroll Handling) -------------------- */
+  /* -------------------- PAGINATION -------------------- */
   useEffect(() => {
     const chart = chartRef.current
     if (!chart) return
     const onScroll = async (range: LogicalRange | null) => {
-      // If we are looking at the far left (past candles)
       if (!range || range.from > 0 || loadingHistoryRef.current || !earliestTimeRef.current || !seriesRef.current) return
       
       loadingHistoryRef.current = true
@@ -158,7 +178,6 @@ export default function TradePage(): JSX.Element {
       const older: Candle[] = await res.json() as Candle[]
       
       if (older?.length && seriesRef.current) {
-        // Merge without duplicates from previous symbol
         const merged = mergeAndSort(older, dataRef.current)
         seriesRef.current.setData(merged)
         dataRef.current = merged
@@ -171,14 +190,10 @@ export default function TradePage(): JSX.Element {
   }, [interval, symbol])
 
   /* -------------------- LIVE WS & PRICE SYNC -------------------- */
- /* -------------------- LIVE WS & PRICE SYNC -------------------- */
-useEffect(() => {
+  useEffect(() => {
     let alive = true
-    
-    // Dynamic URL based on current symbol
     const candleWS = new WebSocket(`ws://localhost:8081?symbol=${symbol}`)
 
-    // 1. Update initial snapshot to 20
     fetch(`https://api.binance.com/api/v3/depth?symbol=${symbol.toUpperCase()}&limit=20`)
       .then(res => res.json() as Promise<BinanceSnapshot>)
       .then(snapshot => {
@@ -188,96 +203,111 @@ useEffect(() => {
         orderBookReadyRef.current = true;
       });
 
-    // 2. Change the stream from @depth10 to @depth20
     const depthWS = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.replace("/", "").toLowerCase()}@depth20@100ms`);
     
-    // ... rest of your candleWS logic ...
-
     depthWS.onmessage = e => {
       if (!alive || !orderBookReadyRef.current) return;
       const data = JSON.parse(e.data);
-      
-      // The updateOrderBook helper already uses MAX_LEVELS, so it will now keep 20
       orderBookRef.current.bids = updateOrderBook(orderBookRef.current.bids, data.bids, true);
       orderBookRef.current.asks = updateOrderBook(orderBookRef.current.asks, data.asks, false);
     };
 
-
     candleWS.onopen = () => {
-        if (alive) {
-            // Tell the backend to specifically subscribe to this symbol
-            candleWS.send(JSON.stringify({ 
-                type: "SUBSCRIBE", 
-                symbol: symbol 
-            }))
-        }
+      if (alive) {
+        candleWS.send(JSON.stringify({ type: "SUBSCRIBE", symbol: symbol }))
+      }
     }
 
     candleWS.onmessage = e => {
-        if (!alive || !seriesRef.current) return
-        try {
-            const data = JSON.parse(e.data)
-            
-            // Binance sends raw kline data, we must map it to our Candle type
-            // Note: If your backend already maps this, keep your current mapping logic
-            const candle: Candle = {
-                time: data.k ? data.k.t / 1000 : data.time,
-                open: data.k ? +data.k.o : data.open,
-                high: data.k ? +data.k.h : data.high,
-                low: data.k ? +data.k.l : data.low,
-                close: data.k ? +data.k.c : data.close,
-            }
-
-            seriesRef.current.update(candle)
-            setOhlcv(candle)
-            
-            setMarket((prev) => ({ ...prev, price: candle.close } as MarketData))
-        } catch (err) {
-            console.error("WS Parse Error", err)
+      if (!alive || !seriesRef.current) return
+      try {
+        const data = JSON.parse(e.data)
+        const candle: Candle = {
+          time: data.k ? data.k.t / 1000 : data.time,
+          open: data.k ? +data.k.o : data.open,
+          high: data.k ? +data.k.h : data.high,
+          low: data.k ? +data.k.l : data.low,
+          close: data.k ? +data.k.c : data.close,
         }
+        seriesRef.current.update(candle)
+        setOhlcv(candle)
+        setMarket((prev) => ({ ...prev, price: candle.close } as MarketData))
+      } catch (err) {
+        console.error("WS Parse Error", err)
+      }
     }
     
-
-    // Inside the live WS useEffect
-const id = setInterval(() => {
-  if (alive && orderBookReadyRef.current) {
-    setOrderBook({
-      bids: [...orderBookRef.current.bids],
-      asks: [...orderBookRef.current.asks]
-    });
-  }
-}, 200); // Updates UI every 200ms
+    const id = setInterval(() => {
+      if (alive && orderBookReadyRef.current) {
+        setOrderBook({
+          bids: [...orderBookRef.current.bids],
+          asks: [...orderBookRef.current.asks]
+        });
+      }
+    }, 200);
 
     return () => {
-        alive = false
-        candleWS.close()
-        depthWS.close()
-        clearInterval(id)
+      alive = false
+      candleWS.close()
+      depthWS.close()
+      clearInterval(id)
     }
-}, [symbol, interval , setMarket]) // Ensure 'symbol' is in the dependency array
+  }, [symbol, interval, setMarket])
 
-
-console.log(orderBook)
   return (
-    <>
+    <div className="flex flex-col gap-4 h-full">
+      {/* TOOLBAR */}
       <div className="bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-center gap-6 shadow-sm">
         <div className="flex items-center gap-4 border-r border-gray-100 pr-6">
-         <select 
-          value={symbol} 
-          // 5. FIX: Double-cast to bypass strict EventTarget checks
-          onChange={(e) => {
-            const target = e.target as any
-            setSymbol(target.value);
-          }}
-          className="font-bold text-lg outline-none cursor-pointer"
-        >
-          <option value="BTCUSDT">BTC/USDT</option>
-          <option value="ETHUSDT">ETH/USDT</option>
-          <option value="SOLUSDT">SOL/USDT</option>
-        </select>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                className="w-[200px] justify-between"
+              >
+                {value ? value : "BTCUSDT"}
+                <ChevronsUpDown className="opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-0">
+              <Command>
+                <CommandInput placeholder="Search symbols..." className="h-9" />
+                <CommandList>
+                  <CommandEmpty>No data found.</CommandEmpty>
+                  <CommandGroup>
+                    {/* Map with 'item' to avoid name collision with 'data' array */}
+                    {Array.isArray(data) && data.map((item: any) => (
+                      <CommandItem
+                        key={item.symbol}
+                        value={item.symbol}
+                        onSelect={(currentValue) => {
+                          const selected = currentValue.toUpperCase();
+                          setValue(selected);
+                          setSymbol(selected);
+                          setOpen(false);
+                          setMarket(prev => ({ ...prev, exchangePair: selected } as MarketData));
+                        }}
+                      >
+                        {item.symbol}
+                        <Check
+                          className={cn(
+                            "ml-auto",
+                            value === item.symbol ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           <span className="text-green-500 font-bold text-lg">{ohlcv?.close}</span>
         </div>
 
+        {/* INTERVALS */}
         <div className="flex bg-gray-100 p-1 rounded-lg">
           {(['1m', '5m', '15m', '1h', '1d'] as Interval[]).map(t => (
             <button 
@@ -289,16 +319,17 @@ console.log(orderBook)
           ))}
         </div>
 
+        {/* OHLCV DATA */}
         <div className="flex gap-4 text-[11px] text-gray-400 font-medium ml-auto md:ml-0">
           <div>O <span className="text-black ml-1 font-mono">{ohlcv?.open}</span></div>
           <div>H <span className="text-red-500 ml-1 font-mono">{ohlcv?.high}</span></div>
           <div>L <span className="text-green-500 ml-1 font-mono">{ohlcv?.low}</span></div>
           <div>C <span className="text-black ml-1 font-mono">{ohlcv?.close}</span></div>
-          {initialHistoryLoaded ? "Live" : "Loading"}
         </div>
       </div>
 
       <div className="flex flex-col xl:flex-row gap-3 flex-grow min-h-[500px]">
+        {/* CHART SECTION */}
         <div className="flex-grow bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
           <div className="p-4 border-b border-gray-50">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Market Chart</span>
@@ -306,6 +337,7 @@ console.log(orderBook)
           <div ref={containerRef} className="h-full w-full"></div>
         </div>
 
+        {/* ORDER BOOK SECTION */}
         <div className="w-full xl:w-72 bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
           <div className="p-4 border-b border-gray-50">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Order Book</span>
@@ -329,7 +361,6 @@ console.log(orderBook)
           </div>
         </div>
       </div>
-    </>
+    </div>
   )
 }
-

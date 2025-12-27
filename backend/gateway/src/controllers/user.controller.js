@@ -219,45 +219,40 @@ const verifyOtp = async (req, res) => {
 }
 
 
-const forgeMarketTrade = async (req , res) => {
+const forgeMarketTrade = async (req, res) => {
     try {
-
-
         const { pair, quantity, quoteOrderQty, type, side, order_price } = req.body;
+        
+        // 1. Validation
         console.log(req.body)
         const symInfo = await getExchnageInfo(pair);
-        const isValid = validateOrder(symInfo , {order_price , qty : quantity , quoteOrderQty : quoteOrderQty});
-        if(!isValid.ok) return res.status(410).json({
-            message : isValid.error || "[ERROR creating order !!!]"
-        })
-        console.log("demo")
+        const isValid = validateOrder(symInfo, { order_price, qty: quantity, quoteOrderQty , type});
+        console.log(isValid)
+        if (!isValid.ok) {
+            return res.status(410).json({ message: isValid.error || "Validation Failed" });
+        }
 
+        const client = await forgeRedisClient();
 
-        const client = forgeRedisClient();
+        // 2. Build Clean Payload (Replace null with 0)
+        const payload = {
+            order_type: type.toUpperCase(),
+            order_symbol: pair,
+            order_quantity: parseFloat(quantity) || 0,
+            order_quoteOrderQty: parseFloat(quoteOrderQty) || 0,
+            order_side: side.toUpperCase(),
+            user_email: req.user?.email
+        };
 
-(await client).lPush(
-    `orders_${type.toLowerCase()}`,
-    JSON.stringify({
-        order_type: type.toUpperCase(),
-        order_symbol: pair,
-        order_quantity: parseFloat(quantity),
-        order_price: parseFloat(order_price), // Map this correctly
-        order_quoteOrderQty: parseFloat(quoteOrderQty),
-        order_side: side.toUpperCase(),
-        user_email: req.user?.email
-    })
-);
+        // 3. Await the Push
+        await client.lPush(`orders_${type.toLowerCase()}`, JSON.stringify(payload));
         return res.status(200).json({
-            message : "Trade created successfully !!!",
-            ok : true
-        })
+            message: "Trade queued successfully",
+            ok: true
+        });
     } catch (error) {
-        console.log(error.message)
-        return res.status(500).json({
-            message : "[Error] Creating order !!",
-            error : error.message || error.response || error ,
-            ok : false
-        })
+        console.error("Redis Push Error:", error);
+        return res.status(500).json({ ok: false, error: error.message });
     }
 };
 

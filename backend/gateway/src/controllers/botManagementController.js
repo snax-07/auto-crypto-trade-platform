@@ -57,6 +57,7 @@ const createAutoBot = async (req , res) => {
         //THIS FOLLOWING IS USED WHILE IN DEPLOYMENT WHILE IN LOACAL ENV YOU NEED TO USE THE HOST AND PORT
         // const response = await axios.post("http://orchservice/internal/orchestrator/v1/createbot" , payload , {});
         const response = await axios.post("http://127.0.0.1:8000/internal/orchestrator/v1/createbot" , payload , {});
+        console.log(response.data.ok)
         console.log(response.data)
 
         if(!response.data.ok) return res.status(422).json({
@@ -65,7 +66,7 @@ const createAutoBot = async (req , res) => {
         });
         
         const newBot = new BotInstance({
-            userId : req.user?._id,
+            userId : req.user?.id,
             strategy,
             name : req.user.name,
             pair : exchangePair,
@@ -83,6 +84,7 @@ const createAutoBot = async (req , res) => {
             pod : response.data.pod_forged_meta.metadata.uid,
         });
     } catch (error) {
+        console.log(error )
         return res.status(500).json({
             message : "Error : Autobot creation !!!",
             error : error.message 
@@ -123,12 +125,14 @@ const stopBot = async (req , res) => {
         const isBotRunning = await BotInstance.findOne({"k8sPodName" : botID});
         console.log(botID)
         if(!isBotRunning) return res.status(410).json({
-            message : "[SERVER] : No Bot Logged !!!"
+            message : "[SERVER] : No Bot Logged !!!",
+            ok : false
         });
         
         if(["completed" , "stopped"].includes(isBotRunning.status)) return res.status(205).json({
             message : "[SERVER] : Bot not Active !!!",
-            status : isBotRunning.status
+            status : isBotRunning.status,
+            ok : true
         });
 
         const payload = {
@@ -141,12 +145,16 @@ const stopBot = async (req , res) => {
         const response = await axios.post("http://127.0.0.1:8000/internal/orchestrator/v1/destbot", payload ,{});
         if(!response.data.ok) return res.status(422).json({
             message : "[SERVER] : Bot Stop Failed !!!",
+            ok : false
         });
 
         console.log(response.data)
+
+        await BotInstance.findOneAndUpdate({k8sPodName : botID} , {status : "stopped"})
         return res.status(200).json({
             message : "Bot successfully stopped !!!",
-            orch : response.data.message
+            orch : response.data.message,
+            ok : true
         });
     } catch (error) {
         return res.status(500).json({
@@ -160,6 +168,7 @@ const stopBot = async (req , res) => {
 const getAllBots = async (req , res) => {
     try {
         await dbConnect();
+        console.log("get all bots")
 
         const user = req.user;
         if(!user) return res.status(410).json({
