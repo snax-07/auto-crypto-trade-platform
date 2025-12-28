@@ -1,5 +1,6 @@
-from sender import SendTradeDetails
+from botEventLogger import botInstance
 
+bots = botInstance.find()
 
-response = SendTradeDetails("docker" , "swing" , "BTCUSDT" , "BUY" , 0.01) 
-print(response)
+for bot in bots:
+    print(bot)

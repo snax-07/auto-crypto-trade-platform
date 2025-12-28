@@ -26,7 +26,10 @@ if _version_not_supported:
 
 
 class TradeBotServiceStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """==========================
+    Trade Bot Service
+    ==========================
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -34,17 +37,20 @@ class TradeBotServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.TradeBotAction = channel.unary_unary(
-                '/trade.TradeBotService/TradeBotAction',
-                request_serializer=trade__pb2.TradeBotRequest.SerializeToString,
-                response_deserializer=trade__pb2.TradeBotRequestReply.FromString,
+        self.ExecuteTrade = channel.unary_unary(
+                '/trade.TradeBotService/ExecuteTrade',
+                request_serializer=trade__pb2.TradeRequest.SerializeToString,
+                response_deserializer=trade__pb2.TradeResponse.FromString,
                 _registered_method=True)
 
 
 class TradeBotServiceServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """==========================
+    Trade Bot Service
+    ==========================
+    """
 
-    def TradeBotAction(self, request, context):
+    def ExecuteTrade(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -53,10 +59,10 @@ class TradeBotServiceServicer(object):
 
 def add_TradeBotServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'TradeBotAction': grpc.unary_unary_rpc_method_handler(
-                    servicer.TradeBotAction,
-                    request_deserializer=trade__pb2.TradeBotRequest.FromString,
-                    response_serializer=trade__pb2.TradeBotRequestReply.SerializeToString,
+            'ExecuteTrade': grpc.unary_unary_rpc_method_handler(
+                    servicer.ExecuteTrade,
+                    request_deserializer=trade__pb2.TradeRequest.FromString,
+                    response_serializer=trade__pb2.TradeResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -67,10 +73,13 @@ def add_TradeBotServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class TradeBotService(object):
-    """Missing associated documentation comment in .proto file."""
+    """==========================
+    Trade Bot Service
+    ==========================
+    """
 
     @staticmethod
-    def TradeBotAction(request,
+    def ExecuteTrade(request,
             target,
             options=(),
             channel_credentials=None,
@@ -83,9 +92,9 @@ class TradeBotService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/trade.TradeBotService/TradeBotAction',
-            trade__pb2.TradeBotRequest.SerializeToString,
-            trade__pb2.TradeBotRequestReply.FromString,
+            '/trade.TradeBotService/ExecuteTrade',
+            trade__pb2.TradeRequest.SerializeToString,
+            trade__pb2.TradeResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -1,3 +1,5 @@
+import sys
+
 from kubernetes import client
 from kubernetes import config
 from kubernetes.client import Configuration
@@ -20,10 +22,12 @@ def shutdown_bot(meta):
     core_v1 = core_v1_api.CoreV1Api()
 
     try:
-        resp = core_v1.delete_namespaced_pod(name=meta["pod_name"] , namespace="default")
+        resp = core_v1.delete_namespaced_pod(name=meta["botId"] , namespace="default")
         if not resp:
             return { "message" : "[ERROR] : Deforging Bot"}
         
+        
+        sys.exit(0);
         return {
             "message" : "Bot deleted !!",
             "ok" : True

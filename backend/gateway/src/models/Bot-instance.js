@@ -7,7 +7,7 @@ const BotInstanceSchema = new mongoose.Schema({
   pair: { type: String, required: true }, // "BTC/USDT"
   params: { type: Object, default: {} }, // runtime params overridden by user
   quantity: { type: Number }, // optional
-  status: { type: String, enum: ['starting','running','stopped','error','completed'], default: 'starting', index: true },
+  status: { type: String, enum: ['starting','inposition','stopped','error','completed' , 'idle'], default: 'idle', index: true },
   k8sPodName: { type: String, index: true },
   startTime: { type: Date, default: Date.now },
   stopTime: { type: Date },

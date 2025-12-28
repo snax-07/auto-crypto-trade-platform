@@ -1,24 +1,58 @@
 syntax = "proto3";
 
 package trade;
-option go_package = "engines/tradeExecutor/gRPC/proto/trade";
-message TradeBotRequest {
-    string bot_id = 1;
-    string action = 2;
-    string exchangePair = 3;
-    double amount = 4;
-    string strategy = 5;
-}
 
+// VERY IMPORTANT FOR GO
+option go_package = "./tradebotpb;tradebotpb";
 
-message TradeBotRequestReply{
-    string botId = 1;
-    string clientOrderId = 2;
-    bool isCompleted = 3;
-    string orderStatus = 4;
-    string strategy = 5;
-}
-
+// ==========================
+// Trade Bot Service
+// ==========================
 service TradeBotService {
-    rpc TradeBotAction (TradeBotRequest) returns (TradeBotRequestReply);
+  rpc ExecuteTrade (TradeRequest) returns (TradeResponse);
+}
+
+// ==========================
+// Requests (Python → Go)
+// ==========================
+message TradeRequest {
+  string bot_id = 1;
+  string strategy = 2;
+  string symbol = 3;        // BTCUSDT
+  string action = 4;        // BUY | SELL | HOLD
+  double quantity = 5;
+  int64 timestamp = 6;      // signal time (ms)
+}
+
+// ==========================
+// Responses (Go → Python)
+// ==========================
+message TradeResponse {
+  string bot_id = 1;
+  string symbol = 2;
+  string action = 3;        // BUY | SELL
+  string order_id = 4;
+  string status = 5;        // FILLED | PARTIALLY_FILLED | REJECTED
+
+  double avg_price = 6;     // TRUE execution price
+  double executed_qty = 7;
+  double quote_qty = 8;     // total USDT spent / received
+
+  double commission = 9;
+  string commission_asset = 10;
+
+  int64 executed_at = 11;   // exchange execution time (ms)
+
+  repeated Fill fills = 12; // raw execution truth
+}
+
+// ==========================
+// Execution Fills
+// ==========================
+message Fill {
+  double price = 1;
+  double qty = 2;
+  double commission = 3;
+  string commission_asset = 4;
+  int64 trade_id = 5;
 }

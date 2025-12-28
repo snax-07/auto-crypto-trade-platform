@@ -4,12 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-
 	"log"
 	"net"
 	"os"
 	"os/signal"
-	pb "tradeExecutor/gRPC/proto"
+	"strconv"
+
+	pb "tradeExecutor/gRPC/proto/tradebotpb"
 
 	"github.com/binance/binance-connector-go"
 	"google.golang.org/grpc"
@@ -17,72 +18,157 @@ import (
 
 type TradeExecutorServer struct {
 	pb.UnimplementedTradeBotServiceServer
-	 activeBots map[string]string
-	 client *binance_connector.Client
+	activeBots map[string]string
+	client     *binance_connector.Client
 }
 
 var (
-	port = flag.Int("port" , 50051 , "Server port where server is listening !!!")
-	completed = flag.Bool("status" , true , "Bot is ready to destroy !!")
-	running = flag.Bool("active" , true , "Bot is active or n")
-	exchangeApiKey = os.Getenv("exchangeApiKey")
+	port              = flag.Int("port", 50051, "Server port where server is listening")
+	exchangeApiKey    = os.Getenv("exchangeApiKey")
 	exchangeApiSecret = os.Getenv("exchangeApiSecret")
-	exchangeBaseURL = flag.String("exchangeBaseURL" , "https://testnet.binance.vision" , "THIS WILL ACT AS THE MAIN REFRENCE POINT FOR API CALLING AND INTEIGRATING THE CLIENT IN TRADEEXECUTOR!!!")
+	exchangeBaseURL   = flag.String("exchangeBaseURL", "https://testnet.binance.vision", "Base URL for Binance API")
 )
 
-func (s *TradeExecutorServer) TradeBotAction(ctx  context.Context , req *pb.TradeBotRequest) (*pb.TradeBotRequestReply , error){
-	log.Printf("Request received ::: bot_id =%s , action=%s , pair=%s , amount=%.5f , strategy=%s" ,
-				req.BotId , req.Action , req.ExchangePair , req.Amount, req.Strategy)
-    s.activeBots[req.BotId] = req.Action
-	
+func (s *TradeExecutorServer) ExecuteTrade(ctx context.Context, req *pb.TradeRequest) (*pb.TradeResponse, error) {
+	log.Printf("Request received ::: bot_id=%s, action=%s, pair=%s, amount=%.5f, strategy=%s",
+		req.BotId, req.Action, req.Symbol, req.Quantity, req.Strategy)
 
-	if req.Action == "BUY" {
-		ctx := context.Background()
-		order ,  err := s.client.NewCreateOrderService().Symbol(req.ExchangePair).Quantity(req.Amount).Type("MARKET").Side(req.Action).Do(ctx)
+	s.activeBots[req.BotId] = req.Action
 
-		if err != nil {
-			fmt.Print(err)
-		}
-		fmt.Print(order)
+	if req.Action != "BUY" && req.Action != "SELL" {
+		return &pb.TradeResponse{
+			BotId:  req.BotId,
+			Symbol: req.Symbol,
+			Action: req.Action,
+			Status: "HOLD",
+		}, nil
 	}
 
-
-
-
-	reply := &pb.TradeBotRequestReply{
-		BotId: req.BotId,
-		ClientOrderId: "testing client order id",//order.ClientOrderId,
-		IsCompleted: *completed,
-		OrderStatus: "Order status",
-		Strategy: req.Strategy,
-	}
-
-	return reply , nil
-}
-
-func newServer() *TradeExecutorServer  {
-	s := &TradeExecutorServer{
-			activeBots: make(map[string]string),
-			client: binance_connector.NewClient(exchangeApiKey , exchangeApiSecret , *exchangeBaseURL),
-	}
-	return s
-}
-
-func main(){
-	lis , err := net.Listen("tcp" , fmt.Sprintf(":%d"  , *port))
+	orderResp, err := s.client.NewCreateOrderService().
+		Symbol(req.Symbol).
+		Quantity(req.Quantity).
+		Type("MARKET").
+		Side(req.Action).
+		Do(ctx)
 	if err != nil {
-		log.Fatalf("Failed to lsiten : %v" , err)
+		log.Printf("Order error: %v", err)
+		return nil, err
 	}
 
-	var opts []grpc.ServerOption
+	order, ok := orderResp.(*binance_connector.CreateOrderResponseFULL)
 
-	grpcServer := grpc.NewServer(opts...)
-	pb.RegisterTradeBotServiceServer(grpcServer, newServer() )
+	fmt.Print(order)
+	if !ok {
+		log.Printf("Failed to cast order response")
+		return nil, fmt.Errorf("invalid order response type")
+	}
 
-	go func ()  {
-		log.Printf("TradeExecutor is listening on port %d..." , *port)
-		if err := grpcServer.Serve(lis); err != nil{
-			log.Fatalf("Failed to serve :: %v " , err)
+	// Build gRPC fills
+	var protoFills []*pb.Fill
+	for _, f := range order.Fills {
+		price, err := strconv.ParseFloat(f.Price, 64)
+    if err != nil {
+        log.Printf("Error parsing price: %v", err)
+        price = 0
+    }
+
+    qty, err := strconv.ParseFloat(f.Qty, 64)
+    if err != nil {
+        log.Printf("Error parsing qty: %v", err)
+        qty = 0
+    }
+
+    commission, err := strconv.ParseFloat(f.Commission, 64)
+    if err != nil {
+        log.Printf("Error parsing commission: %v", err)
+        commission = 0
+    }
+		protoFills = append(protoFills, &pb.Fill{
+			Price:           price,
+			Qty:             qty,
+			Commission:      commission,
+			CommissionAsset: f.CommissionAsset,
+			TradeId:         f.TradeId,
+		})
+	}
+
+var executedAt int64 = int64(order.TransactTime)
+
+// Parse avg price
+var avgPrice float64= 0
+
+// Parse executed quantity
+var executedQty float64
+if q, err := strconv.ParseFloat(order.ExecutedQty, 64); err == nil {
+    executedQty = q
+} else {
+    executedQty = 0
+}
+
+// Parse quote quantity
+var quoteQty float64
+if q, err := strconv.ParseFloat(order.CummulativeQuoteQty, 64); err == nil {
+    quoteQty = q
+} else {
+    quoteQty = 0
+}
+
+// Parse commission
+var commission float64
+if len(order.Fills) > 0 {
+    commission , err = strconv.ParseFloat(order.Fills[0].Commission , 64);
+	if err != nil{
+		commission = 0
+	}
+}
+
+commissionAsset := ""
+if len(order.Fills) > 0 {
+    commissionAsset = order.Fills[0].CommissionAsset
+}
+// Now build the protobuf
+resp := &pb.TradeResponse{
+    BotId:           req.BotId,
+    Symbol:          req.Symbol,
+    Action:          req.Action,
+    OrderId:         fmt.Sprintf("%d", order.OrderId),
+    Status:          order.Status,
+    AvgPrice:        avgPrice,
+    ExecutedQty:     executedQty,
+    QuoteQty:        quoteQty,
+    Commission:      commission,
+    CommissionAsset: commissionAsset,
+    ExecutedAt:      executedAt,
+    Fills:           protoFills,
+}
+
+
+	return resp, nil
+}
+
+
+func newServer() *TradeExecutorServer {
+	return &TradeExecutorServer{
+		activeBots: make(map[string]string),
+		client:     binance_connector.NewClient(exchangeApiKey, exchangeApiSecret, *exchangeBaseURL),
+	}
+}
+
+func main() {
+	flag.Parse()
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	pb.RegisterTradeBotServiceServer(grpcServer, newServer())
+
+	go func() {
+		log.Printf("TradeExecutor is listening on port %d...", *port)
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve: %v", err)
 		}
 	}()
 
@@ -92,46 +178,4 @@ func main(){
 	log.Println("Shutting down TradeBot gRPC server...")
 	grpcServer.GracefulStop()
 	log.Println("Server stopped.")
-
 }
-
-// package main
-
-// import (
-// 	"context"
-// 	"fmt"
-// 	"log"
-// 	"os"
-
-
-// 	"github.com/binance/binance-connector-go"
-// )
-
-// func main() {
-// 	apiKey := os.Getenv("BINANCE_API_KEY")
-// 	secretKey := os.Getenv("BINANCE_API_SECRET")
-// 	baseURL := "https://testnet.binance.vision" 
-// 	if apiKey == "" || secretKey == "" {
-// 		log.Fatal("Please set BINANCE_API_KEY and BINANCE_API_SECRET environment variables")
-// 	}
-
-// 	client := binance_connector.NewClient(apiKey,secretKey,baseURL)
-// account, err := client.NewGetAccountService().Do(context.Background())
-// if err != nil {
-//     fmt.Println("Error fetching account info:", err)
-//     return
-// }
-
-// for _, balance := range account.Balances {
-//     fmt.Println(balance.Asset, ":", balance.Free)
-// }
-
-
-// 	// ctx , cancel := context.WithTimeout(context.Background() , 5*time.Second)
-// 	// defer cancel()
-// 	// order , err := client.NewCreateOrderService().Symbol("BTCUSDT").Quantity(0.001).Type("MARKET").Side("SELL").Do(ctx)
-// 	// if err != nil {
-// 	// 	fmt.Printf("Order error :: %v" , err)
-// 	// }
-// 	// fmt.Print(order)
-// }

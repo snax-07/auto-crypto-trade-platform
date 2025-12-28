@@ -161,7 +161,7 @@ export default function Trading() {
 
       return (
         <div 
-          key={bot.id || bot.exchangePair} // Always use a unique ID if available
+          key={bot.k8sPodName} // Always use a unique ID if available
           className="flex bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm h-28 group hover:border-black w-full transition-all"
         >
           {/* Left Side: 1/10 Brand/Status Strip */}
@@ -177,7 +177,7 @@ export default function Trading() {
             <div className="flex justify-between items-start">
               <div>
                 <h4 className="text-[11px] font-black uppercase leading-tight">{bot?.exchangePair}</h4>
-                <p className="text-[9px] font-bold text-gray-400 uppercase">{bot.startegy} V1</p>
+                <p className="text-[9px] font-bold text-gray-400 uppercase">{bot.strategy} V1</p>
               </div>
               <div className="text-right">
                 <span className={`text-[10px] font-black ${isPositive ? 'text-green-500' : 'text-red-500'}`}>

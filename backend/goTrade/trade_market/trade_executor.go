@@ -112,6 +112,8 @@ if !ok {
 	return fmt.Errorf("unexpected binance response type: %T", resp)
 }
 
+fmt.Print(orderResp)
+
 // 8. Map response → ExecutionMeta
 meta = ExecutionMeta{
 	Status:        orderResp.Status,

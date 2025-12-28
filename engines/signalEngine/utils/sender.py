@@ -1,17 +1,23 @@
 import grpc
-from gRPC.generated import trade_pb2_grpc , trade_pb2
+import time
+from gRPC.generated import trade_pb2, trade_pb2_grpc
 
-def SendTradeDetails(botId , strategy, symbol , side , quantity = None):
+
+def SendTradeDetails(botId, strategy, symbol, side, quantity=None):
     channel = grpc.insecure_channel("localhost:50051")
-    stub = trade_pb2_grpc.TradeBotServiceStub(channel=channel)
+    stub = trade_pb2_grpc.TradeBotServiceStub(channel)
 
-    request = trade_pb2.TradeBotRequest(
+    # Correct message type and field names
+    request = trade_pb2.TradeRequest(
         bot_id=botId,
-        exchangePair=symbol,
-        amount = quantity,
+        symbol=symbol,
+        action=side,
+        quantity=quantity if quantity is not None else 0.0,
         strategy=strategy,
-        action=side
+        timestamp=int(time.time() * 1000)  # milliseconds
     )
-    response = stub.TradeBotAction(request)
+
+    # Correct RPC name from proto
+    response = stub.ExecuteTrade(request)
     print(response)
     return response

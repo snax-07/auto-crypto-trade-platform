@@ -24,17 +24,19 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0btrade.proto\x12\x05trade\"i\n\x0fTradeBotRequest\x12\x0e\n\x06\x62ot_id\x18\x01 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\t\x12\x14\n\x0c\x65xchangePair\x18\x03 \x01(\t\x12\x0e\n\x06\x61mount\x18\x04 \x01(\x01\x12\x10\n\x08strategy\x18\x05 \x01(\t\"x\n\x14TradeBotRequestReply\x12\r\n\x05\x62otId\x18\x01 \x01(\t\x12\x15\n\rclientOrderId\x18\x02 \x01(\t\x12\x13\n\x0bisCompleted\x18\x03 \x01(\x08\x12\x13\n\x0borderStatus\x18\x04 \x01(\t\x12\x10\n\x08strategy\x18\x05 \x01(\t2X\n\x0fTradeBotService\x12\x45\n\x0eTradeBotAction\x12\x16.trade.TradeBotRequest\x1a\x1b.trade.TradeBotRequestReplyb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0btrade.proto\x12\x05trade\"u\n\x0cTradeRequest\x12\x0e\n\x06\x62ot_id\x18\x01 \x01(\t\x12\x10\n\x08strategy\x18\x02 \x01(\t\x12\x0e\n\x06symbol\x18\x03 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x04 \x01(\t\x12\x10\n\x08quantity\x18\x05 \x01(\x01\x12\x11\n\ttimestamp\x18\x06 \x01(\x03\"\xfc\x01\n\rTradeResponse\x12\x0e\n\x06\x62ot_id\x18\x01 \x01(\t\x12\x0e\n\x06symbol\x18\x02 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x03 \x01(\t\x12\x10\n\x08order_id\x18\x04 \x01(\t\x12\x0e\n\x06status\x18\x05 \x01(\t\x12\x11\n\tavg_price\x18\x06 \x01(\x01\x12\x14\n\x0c\x65xecuted_qty\x18\x07 \x01(\x01\x12\x11\n\tquote_qty\x18\x08 \x01(\x01\x12\x12\n\ncommission\x18\t \x01(\x01\x12\x18\n\x10\x63ommission_asset\x18\n \x01(\t\x12\x13\n\x0b\x65xecuted_at\x18\x0b \x01(\x03\x12\x1a\n\x05\x66ills\x18\x0c \x03(\x0b\x32\x0b.trade.Fill\"b\n\x04\x46ill\x12\r\n\x05price\x18\x01 \x01(\x01\x12\x0b\n\x03qty\x18\x02 \x01(\x01\x12\x12\n\ncommission\x18\x03 \x01(\x01\x12\x18\n\x10\x63ommission_asset\x18\x04 \x01(\t\x12\x10\n\x08trade_id\x18\x05 \x01(\x03\x32L\n\x0fTradeBotService\x12\x39\n\x0c\x45xecuteTrade\x12\x13.trade.TradeRequest\x1a\x14.trade.TradeResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'trade_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_TRADEBOTREQUEST']._serialized_start=22
-  _globals['_TRADEBOTREQUEST']._serialized_end=127
-  _globals['_TRADEBOTREQUESTREPLY']._serialized_start=129
-  _globals['_TRADEBOTREQUESTREPLY']._serialized_end=249
-  _globals['_TRADEBOTSERVICE']._serialized_start=251
-  _globals['_TRADEBOTSERVICE']._serialized_end=339
+  _globals['_TRADEREQUEST']._serialized_start=22
+  _globals['_TRADEREQUEST']._serialized_end=139
+  _globals['_TRADERESPONSE']._serialized_start=142
+  _globals['_TRADERESPONSE']._serialized_end=394
+  _globals['_FILL']._serialized_start=396
+  _globals['_FILL']._serialized_end=494
+  _globals['_TRADEBOTSERVICE']._serialized_start=496
+  _globals['_TRADEBOTSERVICE']._serialized_end=572
 # @@protoc_insertion_point(module_scope)
