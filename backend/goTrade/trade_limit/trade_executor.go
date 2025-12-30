@@ -10,132 +10,103 @@ import (
 	"errors"
 	"fmt"
 	"goTrade/data"
-	"math"
 	"time"
 
 	"github.com/binance/binance-connector-go"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// ExecutionManifest reflects the JSON payload from your Redis queue
 type ExecutionManifest struct {
-	OrderType     string  `json:"order_type"`
-	OrderSymbol   string  `json:"order_symbol"`
-	OrderQuantity float64 `json:"order_quantity"`
-	OrderPrice    float64 `json:"order_price"`
-	OrderSide     string  `json:"order_side"`
-	UserEmail     string  `json:"user_email"`
-}
-
-// ExecutionMeta for logging successful trades to MongoDB
-type ExecutionMeta struct {
-	Status        string    `json:"status" bson:"status"`
-	Side          string    `json:"side" bson:"side"`
-	ActionOwner   string    `json:"owner" bson:"owner"`
-	UserId        string    `json:"userId" bson:"userId"`
-	OrderId       int64     `json:"orderId" bson:"orderId"`
-	Symbol        string    `json:"symbol" bson:"symbol"`
-	Quantity      string    `json:"executedQty" bson:"executedQty"`
-	QuoteOrderQty string    `json:"cummulativeQuoteQty" bson:"cummulativeQuoteQty"`
-	Price         string    `json:"price" bson:"price"`
-	CreatedAt     time.Time `json:"createdAt" bson:"createdAt"`
-}
-
-// normalize rounds a float to the specified number of decimal places.
-// This prevents -1013 errors caused by floating-point math noise.
-func normalize(val float64, precision int) float64 {
-	p := math.Pow10(precision)
-	return math.Floor(val*p) / p
+	OrderType          string  `json:"type"`
+	OrderSymbol        string  `json:"pair"`
+	OrderSide          string  `json:"side"`
+	OrderQuantity      float64 `json:"order_quantity"`
+	OrderPrice         float64 `json:"order_price"`
+	UserEmail          string  `json:"user_email"`
+	OrderQuoteOrderQty float64 `json:"order_quoteOrderQty"`
 }
 
 func ExecuteTradeLimit(orderString string) error {
 	userColl := data.User
 	tradeColl := data.Trade
-	var (
-		userDoc struct {
-			ExchangeCredentials []struct {
-				APIKeyEncrypted    string `bson:"apiKeyEncrypted"`
-				APISecretEncrypted string `bson:"apiSecretEncrypted"`
-			} `bson:"exchangeCredentials"`
-		}
-		order ExecutionManifest
-	)
+	var order ExecutionManifest
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	// 1. Unmarshal JSON from Redis
 	if err := json.Unmarshal([]byte(orderString), &order); err != nil {
 		return fmt.Errorf("parsing manifest: %w", err)
 	}
 
-	// 2. Retrieve Encrypted API Keys
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// 1. Retrieve Credentials
+	var userDoc struct {
+		ExchangeCredentials []struct {
+			APIKeyEncrypted    string `bson:"apiKeyEncrypted"`
+			APISecretEncrypted string `bson:"apiSecretEncrypted"`
+		} `bson:"exchangeCredentials"`
+	}
 	err := userColl.FindOne(ctx, bson.M{"email": order.UserEmail}).Decode(&userDoc)
 	if err != nil {
 		return fmt.Errorf("user not found: %w", err)
 	}
 
-	// 3. Decrypt Credentials
-	apiKey, err := decrypt(userDoc.ExchangeCredentials[0].APIKeyEncrypted)
-	if err != nil { return err }
-	apiSecret, err := decrypt(userDoc.ExchangeCredentials[0].APISecretEncrypted)
-	if err != nil { return err }
+	apiKey, _ := decrypt(userDoc.ExchangeCredentials[0].APIKeyEncrypted)
+	apiSecret, _ := decrypt(userDoc.ExchangeCredentials[0].APISecretEncrypted)
 
-	// 4. Initialize Binance Client (Testnet)
 	client := binance_connector.NewClient(apiKey, apiSecret, "https://testnet.binance.vision")
 
-	// 5. Apply Precision Normalization
-	// BTCUSDT Testnet usually: Price (2 decimals), Quantity (5-6 decimals)
-	cleanPrice := normalize(order.OrderPrice, 2)
-	cleanQty   := normalize(order.OrderQuantity, 5)
-
-	// 6. Execute the Order
-	resp, err := client.NewCreateOrderService().
+	// 2. Prepare Order Service
+	orderService := client.NewCreateOrderService().
 		Symbol(order.OrderSymbol).
-		Type("LIMIT").
-		Side(order.OrderSide).
-		TimeInForce("GTC").
-		Quantity(cleanQty).
-		Price(cleanPrice).
-		Do(ctx)
+		Side(order.OrderSide)
 
+	// 3. Type Logic
+	if order.OrderType == "LIMIT" {
+		if order.OrderPrice <= 0 || order.OrderQuantity <= 0 {
+			return fmt.Errorf("LIMIT rejected. Price: %f, Qty: %f. Data: %s", order.OrderPrice, order.OrderQuantity, orderString)
+		}
+		orderService.Type("LIMIT").
+			TimeInForce("GTC").
+			Price(order.OrderPrice).
+			Quantity(order.OrderQuantity)
+	} else {
+		if order.OrderQuoteOrderQty > 0 {
+			orderService.Type("MARKET").QuoteOrderQty(order.OrderQuoteOrderQty)
+		} else {
+			orderService.Type("MARKET").Quantity(order.OrderQuantity)
+		}
+	}
+
+	// 4. Execute Trade
+	resp, err := orderService.Do(ctx)
 	if err != nil {
-		// This captures -1013 and other API rejections
-		fmt.Printf("[Binance Error] Symbol: %s, Price: %f, Error: %v\n", order.OrderSymbol, cleanPrice, err)
-		return fmt.Errorf("binance order failed: %w", err)
+		return fmt.Errorf("Binance API error: %w", err)
 	}
 
-	// 7. Process Successful Response
-	fullResp, ok := resp.(*binance_connector.CreateOrderResponseFULL)
-	if !ok {
-		return fmt.Errorf("unexpected response type: %T", resp)
-	}
+	// 5. Success Logging
+	fullResp := resp.(*binance_connector.CreateOrderResponseFULL)
+	fmt.Printf("✔ Trade Success: %s %s %s at %s\n", fullResp.Symbol, order.OrderType, order.OrderSide, fullResp.Price)
+	
+    // Background DB Log (simplified for brevity)
+    go func() {
+        tradeColl.InsertOne(context.Background(), bson.M{
+            "userId": order.UserEmail,
+            "orderId": fullResp.OrderId,
+            "symbol": fullResp.Symbol,
+            "price": fullResp.Price,
+            "createdAt": time.Now(),
+			"status" : fullResp.Status,
+			"actionOwner" : "MANUAL",
+			"quantity" : order.OrderQuantity,
+			"quoteOrderQty" : order.OrderQuoteOrderQty,
+			"total" : order.OrderPrice,
+        })
+    }()
 
-	meta := ExecutionMeta{
-		Status:        fullResp.Status,
-		Side:          order.OrderSide,
-		ActionOwner:   "MANUAL",
-		UserId:        order.UserEmail,
-		OrderId:       fullResp.OrderId,
-		Symbol:        fullResp.Symbol,
-		Quantity:      fullResp.ExecutedQty,
-		QuoteOrderQty: fullResp.CummulativeQuoteQty,
-		Price:         fullResp.Price,
-		CreatedAt:     time.Now(),
-	}
-
-	// 8. Log Execution to DB in Background
-	go func(m ExecutionMeta) {
-		bgCtx, bgCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer bgCancel()
-		_, _ = tradeColl.InsertOne(bgCtx, m)
-	}(meta)
-
-	fmt.Printf("✔ Successfully placed %s LIMIT order for %s at %s\n", meta.Side, meta.Symbol, meta.Price)
 	return nil
 }
 
-// decrypt handles AES-GCM decryption for API credentials
+// Keep your decrypt function exactly as it is...
 func decrypt(encoded string) (string, error) {
 	cipherData, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil || len(cipherData) < 28 {

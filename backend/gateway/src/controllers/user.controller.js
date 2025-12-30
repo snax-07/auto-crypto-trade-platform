@@ -115,6 +115,18 @@ const LoginUser = async (req, res) => {
     }
 };
 
+const logout = async (req , res) => {
+    try {
+        return res.status(200).clearCookie("accessToken").clearCookie("refreshToken").json({
+            message : "user logged out !!!"
+        })
+    } catch (error) {
+        return res.status(500).json({
+            message : "Error while Logging out !!!"
+        })
+    }
+}
+
 const exchangeCredentials = async (req , res) => {
     try {
         await dbConnect();
@@ -221,33 +233,40 @@ const verifyOtp = async (req, res) => {
 
 const forgeMarketTrade = async (req, res) => {
     try {
-        const { pair, quantity, quoteOrderQty, type, side, order_price } = req.body;
+        const { pair, type, side, order_price, order_quantity, order_quoteOrderQty } = req.body;
         
-        // 1. Validation
-        console.log(req.body)
+        // 1. Validation Logic
         const symInfo = await getExchnageInfo(pair);
-        const isValid = validateOrder(symInfo, { order_price, qty: quantity, quoteOrderQty , type});
-        console.log(isValid)
+        const isValid = validateOrder(symInfo, { 
+            price: order_price, 
+            qty: order_quantity, 
+            quoteOrderQty: order_quoteOrderQty, 
+            type 
+        });
+
         if (!isValid.ok) {
             return res.status(410).json({ message: isValid.error || "Validation Failed" });
         }
 
         const client = await forgeRedisClient();
 
-        // 2. Build Clean Payload (Replace null with 0)
+        // 2. Build Payload to match Go Struct Tags exactly
         const payload = {
-            order_type: type.toUpperCase(),
-            order_symbol: pair,
-            order_quantity: parseFloat(quantity) || 0,
-            order_quoteOrderQty: parseFloat(quoteOrderQty) || 0,
-            order_side: side.toUpperCase(),
-            user_email: req.user?.email
+            type: type.toUpperCase(),
+            pair: pair,
+            side: side.toUpperCase(),
+            order_price: parseFloat(order_price) || 0,
+            order_quantity: parseFloat(order_quantity) || 0,
+            order_quoteOrderQty: parseFloat(order_quoteOrderQty) || 0,
+            user_email: req.user?.email || req.body.user_email
         };
 
-        // 3. Await the Push
-        await client.lPush(`orders_${type.toLowerCase()}`, JSON.stringify(payload));
+        // 3. Queue the order
+        const queueName = `orders_${type.toLowerCase()}`;
+        await client.lPush(queueName, JSON.stringify(payload));
+        
         return res.status(200).json({
-            message: "Trade queued successfully",
+            message: "Trade successfully queued",
             ok: true
         });
     } catch (error) {
@@ -255,7 +274,6 @@ const forgeMarketTrade = async (req, res) => {
         return res.status(500).json({ ok: false, error: error.message });
     }
 };
-
 
 const changePassword = async (req , res) => {
     try {
@@ -480,7 +498,10 @@ export {
 
     forgeMarketTrade,
     returnMe,
-    getAllOrders
+    getAllOrders,
+
+
+    logout
 
 
 }

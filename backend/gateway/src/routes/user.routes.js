@@ -1,5 +1,5 @@
 import e from "express";
-import { RegisterUser  , LoginUser , test, exchangeCredentials, removeExchangeCredential, updateExchangeCredentials, getAllCredentials, verifyOtp, forgeMarketTrade, intiResetPassword, resetPassword, returnMe, setReferralCode, getAllOrders} from "../controllers/user.controller.js";
+import { RegisterUser  , LoginUser , test, exchangeCredentials, removeExchangeCredential, updateExchangeCredentials, getAllCredentials, verifyOtp, forgeMarketTrade, intiResetPassword, resetPassword, returnMe, setReferralCode, getAllOrders, logout} from "../controllers/user.controller.js";
 import verifyToken from "../utils/middleware-auth.js";
 import authoriseBotInit from "../utils/botAuthoriser.js";
 import { loginRateLimiterContext, signUpRateLimiterContext } from "../utils/rateLimiter.js";
@@ -11,6 +11,7 @@ router.route('/login' ).post( loginRateLimiterContext, LoginUser);
 router.route('/digi-verify').post(verifyOtp);
 router.route('/resetLink').post(intiResetPassword); 
 router.route('/reset-password').post(resetPassword);
+router.route('/logout').get(logout)
 
 
 //PROTECTED ROUTES

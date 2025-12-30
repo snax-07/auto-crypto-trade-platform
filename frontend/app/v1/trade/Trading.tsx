@@ -7,6 +7,7 @@ import { useTrade } from '@/hooks/useTrade';
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button"
+import { useRouter } from 'next/navigation';
 
 /*--------Types-------*/
 type TradeType = 'manual' | 'bot';
@@ -30,6 +31,8 @@ export default function Trading() {
   const [limitPrice, setLimitPrice] = useState("");
   const [quantity, setQuantity] = useState("");      
   const [marketValue, setMarketValue] = useState("");  
+
+  const router = useRouter();
 
   /*---------------Logic Implementation---------------*/
   // Synchronizes local UI inputs with the global MarketContext
@@ -58,31 +61,57 @@ export default function Trading() {
     })()
   }, [orderMode, limitPrice, quantity, marketValue, marketInputType, activeSideTab, setMarket]);
 
-  const handleSubmit = async (side: 'BUY' | 'SELL') => {
-    try {
-      // Create payload using current synced context state
-      const payload = {
-        pair: market?.exchangePair?.replace('/', ''), 
-        quantity: market?.quantity || 0,
-        quoteOrderQty: market?.quoteOrderQty || 0,
-        type: market?.orderType,
-        order_price: market?.price || 0,
-        side: side,
-      };
+const handleSubmit = async (side: 'BUY' | 'SELL') => {
+  try {
+    const isLimit = orderMode === 'LIMIT';
+    const isAmountMode = marketInputType === 'amount';
 
-      const response = await axios.post("http://localhost:8080/api/v1/order/create", payload, { withCredentials: true });
-      
-      if (response.data.ok) {
-        toast.success(response.data.message);
-      } else {
-        toast.info(response.data.message);
+    // Calculate values correctly
+    const finalPrice = isLimit ? Number(limitPrice) : 0;
+    let finalQty = Number(quantity) || 0;
+    let finalQuoteQty = 0;
+
+    if (isLimit) {
+      // For LIMIT: If user didn't enter Qty but entered Total, calculate it
+      if (finalQty === 0 && Number(marketValue) > 0) {
+        finalQty = Number(marketValue) / finalPrice;
       }
-    } catch (error) {
-      toast.error("Execution failed. Please check your connection.");
+    } else {
+      // For MARKET:
+      if (!isAmountMode) {
+        finalQuoteQty = Number(marketValue);
+        finalQty = 0; // Reset qty if using Total USDT
+      }
     }
-  };
 
-  console.log(bots)
+    const payload = {
+      type: orderMode,
+      pair: market?.exchangePair?.replace('/', ''),
+      side: side,
+      order_price: finalPrice,
+      order_quantity: finalQty,
+      order_quoteOrderQty: finalQuoteQty,
+      user_email: user?.email,
+    };
+
+    // Validation
+    if (isLimit && (payload.order_price <= 0 || payload.order_quantity <= 0)) {
+      toast.error("Limit orders require both Price and Quantity");
+      return;
+    }
+
+    const response = await axios.post("http://localhost:8080/api/v1/order/create", payload, { withCredentials: true });
+    
+    if (response.data.ok) {
+      toast.success(response.data.message);
+    } else {
+      toast.error(response.data.message || "Execution Failed");
+    }
+  } catch (error) {
+    toast.error("Execution failed. Check console.");
+  }
+};
+
   return (
     <div className="min-h-screen bg-[#F9FAFB] text-slate-900 flex flex-col font-sans">
       <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 justify-between shadow-sm">
@@ -162,13 +191,14 @@ export default function Trading() {
       return (
         <div 
           key={bot.k8sPodName} // Always use a unique ID if available
+          onClick={() => router.push(`/v1/bots/${bot._id}`)}
           className="flex bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm h-28 group hover:border-black w-full transition-all"
         >
           {/* Left Side: 1/10 Brand/Status Strip */}
           <div className="w-[10%] bg-black flex flex-col items-center justify-center gap-2 py-2">
-            <div className={`w-1 h-1 rounded-full animate-pulse ${bot.status === "running" ? "bg-green-500" : "bg-red-500"}`} />
+            <div className={`w-1 h-1 rounded-full animate-pulse ${["idle" , "inposition" , "starting"].includes(bot.status)   ? "bg-green-500" : "bg-red-500"}`} />
             <span className="[writing-mode:vertical-lr] rotate-180 text-[8px] font-black text-white uppercase tracking-tighter">
-              {bot.status === "running" ? "ACTIVE" : "STOPPED"}
+              {["idle" , "inposition" , "starting"].includes(bot.status) ? "ACTIVE" : "STOPPED"}
             </span>
           </div>
 
@@ -366,14 +396,15 @@ export default function Trading() {
                       onClick={async () => {
                         try {
                           const payload = {
-                            symbol: market?.exchangePair?.replace('/', ''),
+                            exchangePair : market?.exchangePair?.replace('/', ''),
                             strategy: "SWING",
-                            amount: Number(marketValue),
-                            user_id: user?._id
+                            quantity: Number(marketValue),
+                            user_id: user?._id,
+                            timeFrame : market?.interval
                           };
-                          const res = await axios.post("http://localhost:8080/api/v1/bot/launch", payload);
+                          const res = await axios.post("http://localhost:8080/api/v1/bot/create", payload , {withCredentials : true});
                           if (res.data.ok) toast.success("Swing Bot Launched!");
-                        } catch (e) {
+                        } catch (e : any) {
                           toast.error("Launch failed. Check balance.");
                         }
                       }}

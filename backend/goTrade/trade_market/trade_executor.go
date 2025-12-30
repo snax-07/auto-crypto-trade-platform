@@ -20,10 +20,10 @@ import (
 
 type ExecutionManifest struct {
 	OrderType          string  `json:"order_type"`          // Expecting "MARKET"
-	OrderSymbol        string  `json:"order_symbol"`
+	OrderSymbol        string  `json:"pair"`
 	OrderQuantity      float64 `json:"order_quantity,omitempty"`      // For Market by Amount
 	OrderQuoteOrderQty float64 `json:"order_quoteOrderQty,omitempty"` // For Market by Total
-	OrderSide          string  `json:"order_side"`
+	OrderSide          string  `json:"side"`
 	UserEmail          string  `json:"user_email"`
 }
 
@@ -57,6 +57,8 @@ func ExecuteTradeMarket(orderString string) error {
 		order   ExecutionManifest
 		meta    ExecutionMeta
 	)
+
+	
 
 	// Context for the entire process
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

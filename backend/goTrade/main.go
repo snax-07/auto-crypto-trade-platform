@@ -46,7 +46,7 @@ func main() {
                 fmt.Printf("Redis Error (Limit): %v\n", err)
                 continue
             }
-
+            fmt.Print(result[1])
             err = trade_limit.ExecuteTradeLimit(result[1])
             if err != nil {
                 fmt.Printf("[ERROR] Limit Execution Failed: %v\n", err)

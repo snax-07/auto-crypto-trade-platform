@@ -72,7 +72,7 @@ const createAutoBot = async (req , res) => {
             pair : exchangePair,
             params : payload,
             quantity,
-            status : response.data.pod_forged_meta.status.phase.toLowerCase(),
+            status : "idle",
             k8sPodName : botId.hash.toLowerCase()
         });
         
@@ -192,8 +192,33 @@ const getAllBots = async (req , res) => {
     }
 }
 
+
+const getBotDetails = async (req , res) => {
+    try {
+        await dbConnect();
+        const {id} = req.params;
+
+        const response = await BotInstance.findById(new mongoose.Types.ObjectId(id));
+        if(!response) return res.status(209).json({
+            message : "Bot id tempored !!",
+            ok : false
+        })
+        return res.status(200).json({
+            message : "Bot Information fethced !!",
+            ok : true,
+            bot : response
+        })
+    } catch (error) {
+        return res.status(500).json({
+            message : "Internal Server Error",
+            ok : false,
+            error : error.message || error
+        })
+    }
+}
 export {
     createAutoBot,
     stopBot,
-    getAllBots
+    getAllBots,
+    getBotDetails
 }
