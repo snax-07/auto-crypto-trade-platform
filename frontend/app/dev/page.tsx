@@ -1,195 +1,125 @@
 "use client";
-
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Cookies from 'js-cookie';
+import React from 'react';
 import { 
-  Bot, Terminal, Cpu, Box, 
-  GitBranch, ArrowRight, Code2, 
-  Command, Activity, Shield
+  Terminal, ShieldAlert, Cpu, Code2, 
+  GitBranch, Key, BookOpen, ExternalLink,
+  ChevronRight, AlertCircle, Github
 } from 'lucide-react';
 
-const LandingPage: React.FC = () => {
-  const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [terminalLine, setTerminalLine] = useState<string>("> Initializing snax_core...");
-
-  useEffect(() => {
-    const access = Cookies.get('access_token');
-    const refresh = Cookies.get('refresh_token');
-    setIsAuthenticated(!!(access && refresh));
-
-    // Simple terminal animation effect
-    const lines = [
-      "> Loading neural weights...",
-      "> Connecting to decentralized mesh...",
-      "> Auth Layer: Standing by.",
-      "> System status: 100% Operational."
-    ];
-    let i = 0;
-    const interval = setInterval(() => {
-      setTerminalLine(lines[i]);
-      i = (i + 1) % lines.length;
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
+const LandingPage = () => {
   return (
-    <div className="min-h-screen bg-[#FDFDFD] text-[#1A1A1A] font-sans">
-      
-      {/* --- Minimalist Nav --- */}
-      <nav className="flex items-center justify-between px-8 py-6 sticky top-0 bg-white/50 backdrop-blur-xl z-50">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/')}>
-          <div className="w-9 h-9 bg-black rounded-full flex items-center justify-center text-white shadow-xl">
-            <Bot size={20} />
+    <div className="min-h-screen bg-[#FDFDFD] text-slate-900 pt-28 pb-20 px-6 font-sans antialiased">
+      <div className="max-w-4xl mx-auto">
+        
+        {/* --- HEADER --- */}
+        <header className="mb-16">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-slate-900 p-2 rounded-xl text-white">
+              <Code2 size={24} />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-[0.3em] text-slate-400">Contributor Protocol</span>
           </div>
-          <span className="font-black tracking-tighter text-xl">AUTOMA</span>
-        </div>
-
-        <div className="hidden lg:flex gap-10 text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
-          <button onClick={() => router.push('#engine')} className="hover:text-black transition-all">Engine</button>
-          <button onClick={() => router.push('#docs')} className="hover:text-black transition-all">Documentation</button>
-          {isAuthenticated && (
-            <button onClick={() => router.push('/v1/trade')} className="text-black border-b-2 border-black">Trade_Interface</button>
-          )}
-        </div>
-
-        <div className="flex gap-4">
-          {isAuthenticated ? (
-            <button 
-              onClick={() => router.push('/v1/dashboard')}
-              className="px-6 py-2 bg-black text-white rounded-full text-xs font-bold shadow-[0_10px_20px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all"
-            >
-              DASHBOARD
-            </button>
-          ) : (
-            <>
-              <button onClick={() => router.push('/login')} className="text-xs font-bold uppercase tracking-widest">Login</button>
-              <button 
-                onClick={() => router.push('/signup')}
-                className="px-6 py-2 bg-black text-white rounded-full text-xs font-bold"
-              >
-                JOIN
-              </button>
-            </>
-          )}
-        </div>
-      </nav>
-
-      {/* --- Hero: The Interactive Interface --- */}
-      <header className="max-w-7xl mx-auto px-8 py-20 grid lg:grid-cols-2 gap-16 items-center">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 text-[10px] font-black tracking-[0.2em] uppercase bg-gray-100 rounded-md border border-gray-200">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Live Open Source
-          </div>
-          <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-[0.85] mb-8">
-            AGENTIC <br/> 
-            <span className="text-transparent" style={{ WebkitTextStroke: '1px #1A1A1A' }}>SYSTEMS</span>
-          </h1>
-          <p className="text-gray-500 text-lg mb-10 max-w-md leading-relaxed font-medium">
-            Building a collaborative infrastructure for autonomous trading entities. No gatekeepers. Just pure logic.
+          <h1 className="text-5xl font-bold tracking-tight mb-4">SNAX QUANTUM</h1>
+          <p className="text-xl text-slate-500 leading-relaxed">
+            Building the next-generation unified execution layer for digital assets.
           </p>
-          <div className="flex gap-4">
-            <button 
-              onClick={() => router.push(isAuthenticated ? '/v1/trade' : '/signup')}
-              className="bg-black text-white px-8 py-4 rounded-xl font-bold flex items-center gap-3 shadow-2xl hover:scale-105 transition-all"
-            >
-              Initialize Node <ArrowRight size={18} />
-            </button>
+        </header>
+
+        {/* --- CRITICAL WARNING BANNER --- */}
+        <section className="mb-12 bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex gap-5 items-start">
+          <div className="bg-amber-100 p-3 rounded-2xl text-amber-700 shadow-sm">
+            <ShieldAlert size={24} />
           </div>
+          <div>
+            <h3 className="font-bold text-amber-900 text-lg mb-1">Architectural Prototype Only</h3>
+            <p className="text-amber-800/80 text-sm leading-relaxed">
+              This system is currently in the **System Understanding Phase**. It is strictly designed for prototyping logic flows. 
+              <span className="block mt-2 font-bold underline">USE ONLY TESTNET / SANDBOX KEYS. Never input production API credentials into this build.</span>
+            </p>
+          </div>
+        </section>
+
+        {/* --- CORE PILLARS --- */}
+        <div className="grid md:grid-cols-2 gap-6 mb-16">
+          <DocCard 
+            icon={<Cpu size={20}/>} 
+            title="Non-Blocking UI" 
+            desc="Every state update must be optimistic. Use local state first, sync to MongoDB in the background."
+          />
+          <DocCard 
+            icon={<Key size={20}/>} 
+            title="Secure Vaulting" 
+            desc="Credentials must be encrypted at rest using AES-256-GCM before database insertion."
+          />
         </div>
 
-        {/* --- Interactive Terminal Widget --- */}
-        <div className="relative">
-          <div className="absolute -inset-4 bg-gradient-to-tr from-gray-200 to-transparent rounded-[2.5rem] blur-2xl opacity-50" />
-          <div className="relative bg-[#0D0D0D] rounded-[2rem] p-6 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden">
-            <div className="flex gap-2 mb-6">
-              <div className="w-3 h-3 rounded-full bg-red-500/20" />
-              <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
-              <div className="w-3 h-3 rounded-full bg-green-500/20" />
-            </div>
-            <div className="font-mono text-sm space-y-3">
-              <p className="text-gray-500">snax-07@os:~$ <span className="text-white">git clone automa</span></p>
-              <p className="text-lime-400">Receiving objects: 100% (452/452), done.</p>
-              <p className="text-gray-500">snax-07@os:~$ <span className="text-white">npm run dev</span></p>
-              <p className="text-blue-400 animate-pulse">{terminalLine}</p>
-              <div className="pt-4 border-t border-white/5 flex justify-between items-center text-[10px] text-gray-600 font-bold uppercase tracking-widest">
-                <span>Latency: 0.12ms</span>
-                <span>Uptime: 99.99%</span>
-              </div>
+        {/* --- INSTRUCTIONS SECTION --- */}
+        <section className="space-y-12">
+          <div>
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+              <Terminal size={22} className="text-slate-400"/> 01. Local Development
+            </h2>
+            <div className="bg-slate-900 rounded-2xl p-6 text-slate-300 font-mono text-sm space-y-2 overflow-x-auto shadow-2xl">
+              <p className="text-slate-500"># Clone and install</p>
+              <p>git clone https://github.com/snax-07/auto-crypto-trade-platform.git</p>
+              <p>npm install</p>
+              <p className="pt-4 text-slate-500"># Environment setup (Required)</p>
+              <p>MONGODB_URI="mongodb://localhost:27017/snax"</p>
+              <p>BCRYPT_SALT="12"</p>
             </div>
           </div>
-        </div>
-      </header>
 
-      {/* --- Engine/Architecture (Deep & Professional) --- */}
-      <section id="engine" className="bg-black text-white py-32 px-8 rounded-[4rem] mx-4 mb-20 shadow-2xl">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-3 gap-16">
-            <div className="space-y-6">
-              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                <Command className="text-white" />
-              </div>
-              <h3 className="text-2xl font-black italic tracking-tighter">Event-Driven Core</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">Our backbone uses a non-blocking I/O architecture. Every market movement triggers a cascading series of autonomous decisions across your agent mesh.</p>
-            </div>
-            <div className="space-y-6">
-              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                <Shield className="text-white" />
-              </div>
-              <h3 className="text-2xl font-black italic tracking-tighter">Encrypted State</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">Private keys never leave your local environment. We utilize OAUTH2-Radius for session management with automated refresh token rotation.</p>
-            </div>
-            <div className="space-y-6">
-              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                <Activity className="text-white" />
-              </div>
-              <h3 className="text-2xl font-black italic tracking-tighter">Real-time Sync</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">Leveraging WebSocket clusters to maintain a persistent link between the engine and the dashboard. Zero-refresh interface.</p>
+          <div>
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+              <GitBranch size={22} className="text-slate-400"/> 02. Feature Implementation
+            </h2>
+            <div className="space-y-4">
+              <StepRow number="1" text="Verify all API logic with Binance Testnet or ByBit Demo." />
+              <StepRow number="2" text="Ensure the not to include the real api keys" />
+              <StepRow number="3" text="Please find mistake so i can learn more." />
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* --- Open Source Contribution Section --- */}
-      <section id="docs" className="max-w-7xl mx-auto px-8 py-20 text-center">
-        <h2 className="text-4xl font-black mb-12 tracking-tighter uppercase">The Documentation Library</h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="p-8 border border-gray-100 rounded-3xl text-left hover:shadow-xl transition-all cursor-pointer group">
-            <div className="flex justify-between items-start mb-6">
-              <Code2 className="text-black" size={32} />
-              <GitBranch className="text-gray-200 group-hover:text-black transition-colors" />
-            </div>
-            <h4 className="font-black text-lg mb-2">Build a Custom Agent</h4>
-            <p className="text-gray-400 text-sm">Learn how to extend the BaseAgent class to create your own logic. Documentation for Python and TypeScript SDKs available.</p>
+        {/* --- FOOTER ACTION --- */}
+        <footer className="mt-24 pt-12 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-6">
+            <a href="https://github.com/snax-07/auto-crypto-trade-platform.git" className="flex items-center gap-2 text-sm font-bold hover:text-blue-600 transition-colors">
+              <Github size={18}/> Repository
+            </a>
+            <a href="https://github.com/snax-07/auto-crypto-trade-platform/tree/main/docs" className="flex items-center gap-2 text-sm font-bold hover:text-blue-600 transition-colors">
+              <BookOpen size={18}/> Full API Docs
+            </a>
           </div>
-          <div className="p-8 border border-gray-100 rounded-3xl text-left hover:shadow-xl transition-all cursor-pointer group">
-            <div className="flex justify-between items-start mb-6">
-              <Box className="text-black" size={32} />
-              <Cpu className="text-gray-200 group-hover:text-black transition-colors" />
-            </div>
-            <h4 className="font-black text-lg mb-2">Self-Hosted Deployment</h4>
-            <p className="text-gray-400 text-sm">Step-by-step guide to deploying the SNAX stack on your own AWS/GCP infrastructure using our Docker templates.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* --- Footer --- */}
-      <footer className="py-20 border-t border-gray-100 bg-white">
-        <div className="max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2 font-black">
-             <Bot size={24} /> SNAX SYSTEM
-          </div>
-          <div className="flex gap-10 text-[10px] font-black uppercase tracking-widest text-gray-400">
-            <a href="https://github.com/snax-07" className="hover:text-black transition-all">Github</a>
-            <a href="#" className="hover:text-black transition-all">Documentation</a>
-            <a href="#" className="hover:text-black transition-all">License</a>
-          </div>
-          <p className="text-gray-300 text-[10px] font-bold">RELEASE 2025 // VERSION 1.0.4_BETA</p>
-        </div>
-      </footer>
+          <button className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm flex items-center gap-2 shadow-lg hover:bg-slate-800 transition-all">
+            Join Development <ExternalLink size={16}/>
+          </button>
+        </footer>
+      </div>
     </div>
   );
 };
+
+/* --- SUB-COMPONENTS --- */
+
+const DocCard = ({ icon, title, desc }: any) => (
+  <div className="bg-white border border-slate-200 p-8 rounded-[2rem] hover:shadow-xl hover:shadow-slate-100 transition-all">
+    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mb-5 text-slate-900">
+      {icon}
+    </div>
+    <h4 className="font-bold text-lg mb-2">{title}</h4>
+    <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
+  </div>
+);
+
+const StepRow = ({ number, text }: any) => (
+  <div className="flex gap-4 items-center group">
+    <div className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all">
+      {number}
+    </div>
+    <p className="text-sm font-medium text-slate-600">{text}</p>
+  </div>
+);
+
 
 export default LandingPage;

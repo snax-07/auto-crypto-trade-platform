@@ -45,7 +45,7 @@ const data = {
       title: "Security",
       url: "security",
       icon: IconListDetails,
-    },
+    }
   ]
 }
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {

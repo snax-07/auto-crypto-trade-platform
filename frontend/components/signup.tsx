@@ -81,9 +81,9 @@ const checkStrength = (value: string) => {
       const res = await axios.post(
         "http://localhost:8080/api/v1/auth/register",
         {
-          email: email.current?.value,
-          name: fullname.current?.value,
-          password: password.current?.value,
+          email: email.current?.value ?? "",
+          name: fullname.current?.value ?? "",
+          password: password.current?.value ?? "",
         },
         { withCredentials: true }
       )
@@ -193,7 +193,7 @@ const checkStrength = (value: string) => {
                   type="password"
                   required
                   ref={password}
-                  onChange={(e) => checkStrength(e.target.value)}
+                  onChange={(e) => checkStrength((e.target as HTMLInputElement as any ).value)}
                 />
 
                 {/* Strength Bar */}

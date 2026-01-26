@@ -13,7 +13,7 @@ import TradeHis from "../models/eventLogger.js"
 
 
 export const generateTokens = (user) => {
-    const payload = { id: user._id , name : user.name, email: user.email  , isVerified : user.isVerified , isPanVerified : user.isPanVerified};
+    const payload = { id: user._id , name : user.name, email: user.email  , isVerified : user.isVerified , isPanVerified : user.isPanVerified , fa2 : user.fa2};
 
     const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
     const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: "7d" });
@@ -48,15 +48,14 @@ const RegisterUser = async (req , res) => {
             };
 
             const otp = authenticator.generate(authenticator.generateSecret())
-
-
-            const newUser = new User({
-                email,
-                name
-            });
-
+            
+            const newUser = User({
+                 name,
+                 email,
+            })
             await newUser.setPassword(password);
             await newUser.hashOtp(otp);
+            await newUser.save();
 
             await sendOtpEmail(email , "Account Verification" , "OtpVerification" , name.split(" ")[0] , otp )
 
@@ -66,6 +65,7 @@ const RegisterUser = async (req , res) => {
                 ok : true
             })
     } catch (error) {
+
         console.log(error.message)
         return res.status(500).send({
             message : "Error while registering the user !!!",
@@ -132,14 +132,16 @@ const exchangeCredentials = async (req , res) => {
         await dbConnect();
         const {exchangeName , apiKey , apiSecret} = req.body;
         const user = await User.findOne({_id : new mongoose.Types.ObjectId(req.user.id)});
+
+        if(user.exchangeCredentials.length > 0)user.exchangeCredentials[0].isActive = false;
         const cred = await user.addExchangeCredential({exchangeName , apiKey , apiSecret});
-        console.log(cred)
         await user.save();
 
         return res.status(200).json({
             message : "Credentials updated successfully !!!"
         })
     } catch (error) {
+        console.log(error.message)
         return res.status(500).json({
             message : "Error while updating exchange credentials !!!",
             error : error.message
@@ -147,25 +149,60 @@ const exchangeCredentials = async (req , res) => {
     }
 };
 
-const updateExchangeCredentials = async (req , res) => {
-    try {
-        await dbConnect();
-        const {exchangeId} = req.params;
-        const {exchangeName = null , apiKey = null , apiSecret = null} = req.body;
+const updateExchangeCredentials = async (req, res) => {
+  try {
+    const { exchangeId } = req.params;
 
-        const user = await User.findOne({_id : new mongoose.Types.ObjectId(req.user?.id)});
-        await user.updateExchangeCredential(exchangeId , {exchangeName , apiKey , apiSecret});
-        await user.save();
-        return res.status(200).json({
-            message : "Exchange Credentials Updated !!!"
-        });
-    } catch (error) {
-        return res.status(500).json({
-            message : "Error : Updating Exchange Credentials !!",
-            error : error.message
-        });
+    await dbConnect();
+    
+    if (!exchangeId || !mongoose.Types.ObjectId.isValid(exchangeId)) {
+      return res.status(400).json({ message: "Valid exchangeId is required" });
     }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const exchanges = user.exchangeCredentials;
+
+
+    const targetIndex = exchanges.findIndex(
+      ec => ec._id.toString() === exchangeId
+    );
+
+    if (targetIndex === -1) {
+      return res.status(404).json({ message: "Exchange not found" });
+    }
+
+
+    exchanges.forEach(ec => {
+      ec.isActive = false;
+    });
+
+
+    exchanges[targetIndex].isActive = true;
+
+
+    const [activeExchange] = exchanges.splice(targetIndex, 1);
+    exchanges.unshift(activeExchange);
+
+    await user.save();
+
+    return res.status(200).json({
+      message: "Exchange activated successfully",
+      keyName : user.exchangeCredentials[0].exchangeName
+    });
+
+  } catch (error) {
+    console.error("Exchange toggle error:", error.message);
+    return res.status(500).json({
+      message: "Error updating exchange credentials",
+      error: error.message,
+    });
+  }
 };
+
 
 const removeExchangeCredential = async (req , res) => {
     try {
@@ -190,12 +227,15 @@ const getAllCredentials = async (req , res) => {
     try {
         await dbConnect();
 
+        console.log(req.user)
         const list = await User.findOne({ _id : new mongoose.Types.ObjectId(req.user?.id)} , {exchangeCredentials : 1 , _id : 0});
+        console.log(list)
         return res.status(200).json({
             message : "Exchange Credentials Fetched Successfully !!!",
-            credentialsList : [...list.exchangeCredentials]
+            credentials : [...list.exchangeCredentials]
         });
     } catch (error) {
+        console.log(error.message)
         return res.status(500).json({
             message : "Error : Getting All Credentials !!!",
             error : error.message
@@ -209,7 +249,7 @@ const verifyOtp = async (req, res) => {
         await dbConnect();
         const {email , otp} = req.body;
         const isVerified = await User.findOne({email}).select("--refreshToken --exchangeCredentials --UIDAINumber");
-
+        console.log(isVerified)
         const response = await isVerified.verifyOtp(otp);
         if(!response.status) return res.status(410).send({...response});
         const {accessToken , refreshToken} = generateTokens(isVerified);
@@ -388,7 +428,8 @@ const returnMe = async (req , res) => {
              isPanVerified : 1,
              marketWatchList : 1,
              referralCode : 1,
-             phoneNumber : 1
+             phoneNumber : 1,
+             fa2 : 1
             });
 
         return res.status(200).json({
@@ -469,7 +510,93 @@ const getAllOrders = async (req , res) => {
             ok : false
         })
     }
+};
+
+const updateInfo = async (req, res) => {
+    try {
+            await dbConnect();
+            const user = req.user
+            // if(!confirmpassword && (!name || !email)) return res.status(410).json({
+            //     message : "Required parameteres !!!",
+            //     ok : false
+            // });
+
+            const otp = authenticator.generate(authenticator.generateSecret())
+            const existingUser = await User.findOne({email : user.email});
+            existingUser.hashOtp(otp);
+            // existingUser.name = name;
+            // existingUser.email = email;
+            await existingUser.save()
+            sendOtpEmail(user.email , "Veirfy Email" , "OTPVerification" , user.name.split(" ")[0] , otp );
+
+            return res.status(200).json({
+                message : "Information updated successfully !!!",
+                ok : true
+            })
+    } catch (error) {
+        return res.status(500).json({
+            message : "Interal error",
+            ok : false
+        })
+    }
 }
+
+const updateVerifier = async (req , res) => {
+    try {
+        await dbConnect();
+        const {otp, email , name} = req.body;
+        const user = req.user;
+        const existingUser = await User.findOne({email : user.email});
+        const isCorrect = await existingUser.verifyOtp(otp);
+        console.log(isCorrect)
+        if(!isCorrect.status) return res.status(403).json({
+            message : isCorrect.message,
+            ok : false
+        });
+        existingUser.name = name ? name : user.name;
+        existingUser.email = email ? email : user.email;
+        await existingUser.save();
+
+        return res.status(200).json({
+            message : "Detail updated successfully !!!",
+            ok : true
+        })
+    } catch (error) {
+        console.log(error.message)
+        return res.status(500).json({
+            message : "INternal server error !!!",
+            ok : false,
+            error : error.message || error
+        })
+    }
+}
+
+const update2FA = async (req , res) => {
+    try {
+        await dbConnect();
+        const {email , sms} = req.body;
+        await User.findOneAndUpdate({
+            email : req.user?.email
+        } ,{
+            fa2 : {
+                email2FA : email,
+                sms2FA: sms
+            }
+        });
+
+        return res.status(200).json({
+            message : "2FA updated successfully !!!",
+            ok : true
+        });
+    } catch (error) {
+        return res.status(500).json({
+            message : "Internal server error",
+            ok : false,
+            error : error.message || error
+        })
+    }
+}
+
 const test = async (req , res) => {
 
     await sendOtpEmail("swapnilnade07@gmail.com" , "Test mail" , 'OtpVerification' , {name : "snax"})
@@ -487,6 +614,9 @@ export {
     changePassword,
     intiResetPassword,
     resetPassword,
+    updateInfo,
+    updateVerifier,
+    update2FA,
 
     setReferralCode,
     setPhoneNumber,

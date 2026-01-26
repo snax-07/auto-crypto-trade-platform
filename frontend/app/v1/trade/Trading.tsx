@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect, useRef } from 'react';
-import { TrendingUp, LayoutGrid, Zap, ArrowRightLeft } from 'lucide-react';
+import { TrendingUp, LayoutGrid, Zap, ArrowRightLeft, User } from 'lucide-react';
 import TradePage from '@/components/tradingCharts/tradingCharts';
 import { toast } from 'sonner';
 import { useTrade } from '@/hooks/useTrade';
@@ -24,6 +24,7 @@ export default function Trading() {
   const [orderMode, setOrderMode] = useState<OrderMode>('LIMIT');
   const [marketInputType, setMarketInputType] = useState<MarketInputType>('amount');
   const [activeTab, setActiveTab] = useState<Tab>("history");
+  const [isBotLaunching , setIsBotLaunching] = useState<Boolean>(false)
 
   const [bots , setBots] = useState([]);
   
@@ -114,14 +115,46 @@ const handleSubmit = async (side: 'BUY' | 'SELL') => {
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] text-slate-900 flex flex-col font-sans">
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 justify-between shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-            <TrendingUp size={18} className="text-white" />
-          </div>
-          <span className="font-black text-xl tracking-tight">Snax Quantum</span>
+    <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 justify-between shadow-sm">
+      {/* Logo */}
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+          <TrendingUp size={18} className="text-white" />
         </div>
-      </header>
+        <span className="font-black text-xl tracking-tight">
+          Snax Quantum
+        </span>
+      </div>
+
+      {/* Profile Dropdown */}
+      <div className="relative group">
+        <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition">
+          <User size={18} />
+        </div>
+
+        <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-md shadow-lg
+                        opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
+          <ul className="py-1 text-sm">
+            <li>
+              <button
+                onClick={() => router.push("/v1/dashboard")}
+                className="w-full text-left px-4 py-2 hover:bg-gray-100"
+              >
+                Dashboard
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => console.log("logout")}
+                className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+              >
+                Logout
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </header>
 
       <main className="flex flex-col lg:flex-row flex-1 p-3 gap-3 overflow-hidden">
         {/* Main Content Area */}
@@ -394,6 +427,7 @@ const handleSubmit = async (side: 'BUY' | 'SELL') => {
 
                     <Button 
                       onClick={async () => {
+                        setIsBotLaunching(true)
                         try {
                           const payload = {
                             exchangePair : market?.exchangePair?.replace('/', ''),
@@ -403,11 +437,16 @@ const handleSubmit = async (side: 'BUY' | 'SELL') => {
                             timeFrame : market?.interval
                           };
                           const res = await axios.post("http://localhost:8080/api/v1/bot/create", payload , {withCredentials : true});
-                          if (res.data.ok) toast.success("Swing Bot Launched!");
+                          if (res.data.ok){
+                             toast.success("Swing Bot Launched!")
+                             setIsBotLaunching(false)
+                          };
+                          console.log(res.data)
                         } catch (e : any) {
                           toast.error("Launch failed. Check balance.");
                         }
                       }}
+                      disabled={isBotLaunching as boolean}
                       className="w-full bg-black h-16 rounded-2xl font-black text-white uppercase tracking-widest text-[11px] hover:scale-[1.01] active:scale-95 transition-all shadow-lg shadow-black/10"
                     >
                       Launch Automated Bot

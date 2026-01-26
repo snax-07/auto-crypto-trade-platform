@@ -82,6 +82,7 @@ const createAutoBot = async (req , res) => {
             message : "Bot is created successfully !!",
             botId ,
             pod : response.data.pod_forged_meta.metadata.uid,
+            ok : response.data.ok
         });
     } catch (error) {
         console.log(error )

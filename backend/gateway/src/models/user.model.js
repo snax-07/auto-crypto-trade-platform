@@ -52,6 +52,10 @@ const UserSchema = new mongoose.Schema({
   phoneNumber : {type : Number},
   referralCode : {type : String},
 
+  fa2 : {
+    email2FA : {type : Boolean , required : true , default : true},
+    sms2FA : {type : Boolean , required : false},
+  },
   marketWatchList : {type : [String] , default: []},
   botCount : {type : Number , default :0},
   
@@ -151,10 +155,11 @@ UserSchema.methods.addExchangeCredential = function ({
     exchangeName,
     apiKeyEncrypted: encryptText(apiKey),
     apiSecretEncrypted: encryptText(apiSecret),
-    passphraseEncrypted: passphrase ? encryptText(passphrase) : undefined
+    passphraseEncrypted: passphrase ? encryptText(passphrase) : undefined,
+    isActive : true
   };
 
-  this.exchangeCredentials.push(cred);
+  this.exchangeCredentials.unshift(cred);
   return cred;
 };
 

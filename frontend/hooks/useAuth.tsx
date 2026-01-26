@@ -3,6 +3,10 @@
 import axios from "axios";
 import { createContext, useContext, useEffect, useState , SetStateAction , Dispatch} from "react";
 
+type fa2Type = {
+  email2FA : boolean
+  sms2FA : boolean
+}
 export type UserIn = {
   _id: string;
   email: string;
@@ -13,6 +17,7 @@ export type UserIn = {
   marketWatchList : string[];
   referralCode?: string | null;
   phoneNumber?: string | null;
+  fa2 : fa2Type | null
 };
 
 type AuthContextType = {
@@ -32,12 +37,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }
   useEffect(() => {
     console.log("client auth provider")
-    console.log("User : " , user)
     const fetchMe = async () => {
       try {
         const res = await axios.get("http://localhost:8080/api/v1/auth/me" , {withCredentials : true})
         if (!res.data.ok) throw new Error("Not authenticated");
-        console.log(res.data.user, "demo")
         const data = res.data
         setUser(data.user);
       } catch {

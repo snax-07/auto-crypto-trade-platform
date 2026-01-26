@@ -2,25 +2,29 @@ import nodemailer from 'nodemailer'
 import hbs from 'nodemailer-express-handlebars'
 import path from 'path'
 import {EMAIL_USER} from './secretEnv.js';
+import { fileURLToPath } from 'url';
 
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const MiddleTransporter = nodemailer.createTransport({
     host : "smtp.gmail.com",
     port : 587,
     auth : {user : "snaxquantum@gmail.com" , pass : "vyna ufac wpbh mmld"}
 });
 
-const handlerBarOptions = {
-    viewEngine : {
-        extname : '.hbs',
-        layoutsDir : path.resolve('./src/template'),
-        defaultLayout : 'main',
-        partialsDir : path.resolve('./src/template')
-    },
-    viewPath : path.resolve('./src/template'),
-    extName: '.hbs'
-};
+const templateDir = path.join(__dirname, '..', 'template');
 
+const handlerBarOptions = {
+  viewEngine: {
+    extname: '.hbs',
+    layoutsDir: templateDir,
+    defaultLayout: 'main',
+    partialsDir: templateDir
+  },
+  viewPath: templateDir,
+  extName: '.hbs'
+};
 MiddleTransporter.use('compile' , hbs(handlerBarOptions));
 
 const sendOtpEmail = async (to , subject , template , userName , otp) => {

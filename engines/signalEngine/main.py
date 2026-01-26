@@ -26,7 +26,7 @@ signal.signal(signal.SIGINT, shutdown_forged_bot_pod)
 
 async def main():
     module = importlib.import_module(
-        f"strategies.{strategy.capitalize()}_stat.{strategy}_strategy"
+        f"strategies.{strategy.capitalize()}_stat.{strategy.lower()}"
     )
     cls = getattr(module, strategy)
     executor = cls()

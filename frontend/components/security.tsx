@@ -1,4 +1,4 @@
-import React, { useState , useEffect} from 'react';
+import React, { useState , useEffect , useRef} from 'react';
 import { 
   Shield, User, Key, Settings as SettingsIcon, Mail, Smartphone, 
   Lock, Eye, EyeOff, CheckCircle2, Loader2, Save, UserCircle, 
@@ -7,6 +7,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { useAuth } from '@/hooks/useAuth';
+import { ProfileSettings } from './ProfileSetting';
+import use2FA from '@/hooks/use2FA';
+import { useRouter } from 'next/navigation';
 
 type TabType = 'Profile' | 'Security' | 'API Keys';
 
@@ -49,7 +53,7 @@ export const SettingsHub: React.FC = () => {
       {/* --- MAIN CONTENT AREA --- */}
       <main className="flex-1 p-6 lg:p-12 overflow-y-auto bg-white">
         <div className="max-w-4xl mx-auto">
-           {activeTab === 'Profile' && <ProfileComponent />}
+           {activeTab === 'Profile' && <ProfileSettings />}
            {activeTab === 'Security' && <SecurityComponent />}
            {activeTab === 'API Keys' && <APIKeyComponent />}
         </div>
@@ -58,63 +62,60 @@ export const SettingsHub: React.FC = () => {
   );
 };
 
-/* -------------------------------------------------------------------------- */
-/* 1. PROFILE COMPONENT                              */
-/* -------------------------------------------------------------------------- */
-const ProfileComponent = () => {
-  const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState({ fullName: "Swapnil Nade", email: "swapnilnade07@gmail.com", confirmPass: "" });
 
-  return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <header className="border-b border-slate-200 pb-6">
-        <h1 className="text-2xl font-bold">Profile Settings</h1>
-        <p className="text-slate-500 text-sm">Update your public profile and verified email address.</p>
-      </header>
 
-      <section className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <InputWrapper label="Full Name" value={profile.fullName} onChange={(v : any) => setProfile({...profile, fullName: v})} icon={<User size={16}/>} />
-          <InputWrapper label="Email Address" value={profile.email} onChange={(v : any) => setProfile({...profile, email: v})} icon={<Mail size={16}/>} />
-        </div>
-        
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
-          <div className="flex items-center gap-2 text-slate-700 mb-4 font-semibold text-sm">
-            <ShieldCheck size={18} /> Sensitive Data Confirmation
-          </div>
-          <InputWrapper 
-            label="Current Password" 
-            type="password" 
-            placeholder="Confirm password to change email" 
-            value={profile.confirmPass} 
-            onChange={(v : any) => setProfile({...profile, confirmPass: v})} 
-          />
-        </div>
-
-        <button className="bg-slate-900 text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all ml-auto block">
-          Update Info
-        </button>
-      </section>
-    </div>
-  );
-};
-
-/* -------------------------------------------------------------------------- */
-/* 2. SECURITY COMPONENT                             */
-/* -------------------------------------------------------------------------- */
 const SecurityComponent = () => {
   const [loading, setLoading] = useState(false);
+  const {user} = useAuth();
   const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
   const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
-  const [toggles, setToggles] = useState({ email: true, sms: false });
+  const [toggles, setToggles] = useState({ email: user?.fa2?.email2FA , sms:  user?.fa2?.sms2FA  });
+  const debouncedToggles = use2FA(toggles, 500);
+
+  const prevTogglesRef = useRef(debouncedToggles);
+
+useEffect(() => {
+  const prev = prevTogglesRef.current;
+
+  const hasChanged =
+    prev.email !== debouncedToggles.email ||
+    prev.sms !== debouncedToggles.sms;
+
+  if (!hasChanged) return;
+
+
+  const update2FA = async () => {
+    try {
+      await axios.post(
+        "http://localhost:8080/api/v1/auth/update-2fa",
+        debouncedToggles,
+        { withCredentials: true }
+      );
+      toast.success("Security preferences updated");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to update 2FA");
+    }
+  };
+
+  update2FA();
+  prevTogglesRef.current = debouncedToggles;
+}, [debouncedToggles]);
+
 
   const handleSave = async () => {
     if (passwords.new !== passwords.confirm) return toast.error("Passwords mismatch");
     setLoading(true);
-    setTimeout(() => { // Mock API
-      setLoading(false);
-      toast.success("Security Updated");
-    }, 1000);
+   try {
+    
+    const response = await axios.post("http://localhost:8080/api/v1/auth/chgPass" , {oldPassword : passwords.current , newPassword : passwords.new} , {withCredentials : true})
+    if(response.data.ok){
+      toast.success(response.data.message)
+    }
+   } catch (error: any) {
+    toast.error(error?.response?.data?.message || "An error occurred")
+   } finally {
+    setLoading(false);
+   }
   };
 
   return (
@@ -129,6 +130,7 @@ const SecurityComponent = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
            <SecurityInput label="New Password" value={passwords.new} onChange={(v : any) => setPasswords({...passwords, new: v})} visible={showPass.new} toggle={() => setShowPass({...showPass, new: !showPass.new})} />
            <SecurityInput label="Confirm New Password" value={passwords.confirm} onChange={(v : any) => setPasswords({...passwords, confirm: v})} visible={showPass.confirm} toggle={() => setShowPass({...showPass, confirm: !showPass.confirm})} />
+           <SecurityInput label="Current Password" value={passwords.current} onChange={(v : any) => setPasswords({...passwords, current: v})} visible={showPass.current} toggle={() => setShowPass({...showPass, current: !showPass.current})} />
         </div>
         <button onClick={handleSave} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2">
           {loading ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle2 size={16}/>} Save Password
@@ -143,15 +145,14 @@ const SecurityComponent = () => {
   );
 };
 
-/* -------------------------------------------------------------------------- */
 /* 3. API KEY COMPONENT (Enhanced with Dialog & Sync Logic)                   */
-/* -------------------------------------------------------------------------- */
 const APIKeyComponent = () => {
   const [keys, setKeys] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  
-  // Local form state for new key
+
+  const router = useRouter()
+
   const [formData, setFormData] = useState({
     name: '',
     exchangeName: 'Binance',
@@ -166,7 +167,7 @@ const APIKeyComponent = () => {
 
   const fetchKeys = async () => {
     try {
-      const res = await axios.get('/api/v1/user/credentials');
+      const res = await axios.get('http://localhost:8080/api/v1/exchange/getCred' , {withCredentials : true});
       // Assuming your backend returns decrypted/masked keys via getDecrypted()
       setKeys(res.data.credentials);
     } catch (err) {
@@ -181,7 +182,7 @@ const APIKeyComponent = () => {
       return toast.error("Please fill all fields");
     }
 
-    // 1. Optimistic Update (Non-blocking UI)
+
     const tempId = Date.now();
     const newLocalKey = {
       _id: tempId,
@@ -197,7 +198,10 @@ const APIKeyComponent = () => {
 
     // 2. Background Sync
     try {
-      await axios.post('/api/v1/user/add-credential', formData);
+      const res = await axios.post('http://localhost:8080/api/v1/exchange/add' , {exchangeName : formData.exchangeName , apiKey : formData.apiKey , apiSecret : formData.apiSecret} , {withCredentials : true} );
+      if(res.data.ok){
+        toast.success("Exchange Credentialas added !!!")
+      }
       fetchKeys(); // Refresh to get the real MongoDB _id
     } catch (err) {
       // Rollback on failure
@@ -219,6 +223,20 @@ const APIKeyComponent = () => {
       toast.error("Delete failed. Reverting.");
     }
   };
+
+  const ActiveCurrentKey = async (id : string) => {
+    try {
+      const response = await axios.post(`http://localhost:8080/api/v1/exchange/update/${id}` , {} , {withCredentials : true});
+      fetchKeys();
+      router.refresh();
+      toast.success(`${response.data.keyName} is Activated !!!`)
+    } catch (error) {
+      console.log(error)
+      toast.error("Key Activating error !!");
+    }
+  }
+
+  console.log(keys)
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -256,7 +274,7 @@ const APIKeyComponent = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400"><Power size={18}/></button>
+                <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400" onClick={() => ActiveCurrentKey(item._id)}><Power className={`${item.isActive} ? text-green-500 : text-black-400 `} size={18}/></button>
                 <button onClick={() => deleteKey(item._id)} className="p-2 hover:bg-red-50 rounded-lg text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
               </div>
             </div>
