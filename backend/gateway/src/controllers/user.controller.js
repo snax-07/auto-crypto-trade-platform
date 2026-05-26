@@ -1,6 +1,6 @@
 import dbConnect from "../utils/dbConnect.js"
 import User from "../models/user.model.js";
-import { JWT_REFRESH_SECRET , JWT_SECRET } from "../utils/secretEnv.js";
+import { DB_URL, JWT_REFRESH_SECRET , JWT_SECRET } from "../utils/secretEnv.js";
 import  { sendPasswordResetMail , sendOtpEmail } from "../utils/NodeMailer.js";
 import {authenticator} from "otplib"
 import jwt from "jsonwebtoken"
@@ -24,6 +24,8 @@ export const generateTokens = (user) => {
 const RegisterUser = async (req , res) => {
     try {
             await  dbConnect();
+
+            
             const  {email , name , password} = req.body;
 
             const existingUser = await User.findOne({email});

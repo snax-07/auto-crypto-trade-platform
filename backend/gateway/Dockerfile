@@ -1,17 +1,13 @@
-
-FROM node:20-slim AS deps
+FROM node:20-slim
 
 WORKDIR /app
+
 COPY package*.json ./
-RUN npm ci --production
 
+RUN npm install
 
+COPY . .
 
-FROM node:20-slim AS app
-
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY src/ ./src
 EXPOSE 8000
 
-CMD ["node", "src/index.js"]
+CMD ["npm", "run", "start"]

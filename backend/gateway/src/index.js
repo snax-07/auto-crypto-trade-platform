@@ -10,7 +10,7 @@ import http from 'http';
 /*---------INTERNAL ROUTE IMPORTS-------*/
 import userRouter from './routes/user.routes.js';
 import botRouter from './routes/automationBot.routes.js';
-import { PORT } from './utils/secretEnv.js';
+import { DB_URL, PORT } from './utils/secretEnv.js';
 import { 
     botRateLimiterContext, 
     globalRateLimiterContext, 

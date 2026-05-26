@@ -1,0 +1,6 @@
+backend
+engines
+infra
+k8sb
+node_modules
+.git
