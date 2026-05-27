@@ -143,6 +143,12 @@ const symbolFromUrl = url.searchParams.get('symbol') || 'btcusdt';
     });
 });
 
+app.get("/health", (_, res) => {
+  return res.status(200).json({
+    status: "ok"
+  });
+});
+
 /*---------START SERVER----------*/
 app.listen(PORT, () => {
     console.log(`Server & WebSocket running on port ${PORT}`);
