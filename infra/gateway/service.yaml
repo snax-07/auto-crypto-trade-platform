@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name:  gateway-service
+  namespace : quantum
+spec:
+  selector:
+    app:  gateway-deployment
+  type: ClusterIP
+  ports:
+  - name:  gateway-service-port
+    protocol : TCP
+    port:  8080
+    targetPort:  8080

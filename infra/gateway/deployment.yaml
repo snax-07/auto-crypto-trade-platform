@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name:  gateway-deployment
+  namespace : quantum
+  labels:
+    app:  gateway-deployment
+spec:
+  selector:
+    matchLabels:
+      app: gateway-deployment
+  replicas : 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app:  gateway-deployment
+    spec:
+      containers:
+      - image:  gatewayservice
+        name:  gateway
+        imagePullPolicy: Never
+        resources:
+          requests:
+            cpu: "20m"
+            memory: "55M"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        env:
+        - name:  PORT
+          value:  "8080"
+        - name: DB_URL
+          value: "mongodb+srv://snax:snax@snax1.svjz8.mongodb.net/quantum?retryWrites=true&w=majority"
+        - name: JWT_SECRET
+          value: "snaxquantum"
+        - name: JWT_REFRESH_SECRET
+          value: "snaxquantum"
+        - name: REDIS_URL
+          valueFrom : 
+            secretKeyRef:
+              name: redis-secret
+              key: REDIS_URL
+        ports:
+        - containerPort:  8080
+          name:  gateway
+        volumeMounts:
+        - mountPath: /data
+          name: data
+      volumes:
+        - name: data
+          emptyDir: {}
+      restartPolicy: Always
